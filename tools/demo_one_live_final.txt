@@ -1,0 +1,62 @@
+[20:22:04] relay on 127.0.0.1:58362
+[20:22:04] A(Live): script: listening on 127.0.0.1:9800 for the Live Remote Script
+[20:22:04] A(Live): relay: connecting to 127.0.0.1:58362
+[20:22:04] A(Live): relay: connected
+[20:22:04] A(Live): relay: welcome (session Cccbnjxv6klP7pbT) - full resync from snapshot, seq=0
+[20:22:04] A(Live): session Cccbnjxv6klP7pbT  role=host  invite code: 2BKDT3C8C79P
+[20:22:04] A(Live): presence: host(you) online
+[20:22:04] A(Live): ownership: drums -> you
+[20:22:04] A(Live): ownership: bass -> guest
+[20:22:04] session Cccbnjxv6klP7pbT code 2BKDT3C8C79P
+[20:22:04] B(sim): script: listening on 127.0.0.1:9810 for the Live Remote Script
+[20:22:04] B(sim): relay: connecting to 127.0.0.1:58362
+[20:22:04] B(sim): relay: connected
+[20:22:04] B(sim): relay: welcome (session Cccbnjxv6klP7pbT) - full resync from snapshot, seq=0
+[20:22:04] B(sim): session Cccbnjxv6klP7pbT  role=guest  invite code: 2BKDT3C8C79P
+[20:22:04] A(Live): presence: host(you) online, guest(peer) online
+[20:22:04] B(sim): presence: host(peer) online, guest(you) online
+[20:22:04] B(sim): ownership: drums -> p-live-host
+[20:22:04] B(sim): ownership: bass -> you
+[20:22:04] A(Live): ownership: drums -> you
+[20:22:04] A(Live): ownership: bass -> p-sim-guest
+[20:22:04] B(sim): script: Live connected
+[20:22:04] B(sim): script: hello from Live 12.3.8 set='Test'
+[20:22:04] B(sim): Supported parts:
+  clip     track            slot found  owned  notes
+  drums    Anthem Drums     0    yes    no     0
+  bass     Anthem Bass      0    yes    yes    0
+[20:22:05] A(Live): script: Live connected
+[20:22:05] A(Live): script: hello from Live 12.4.2 set=''
+[20:22:05] A(Live): WARNING: unsaved Live Set: the different-project guard is inactive — save the set to enable it
+[20:22:06] bound: Live=True sim=True
+[20:22:06] A(Live): Supported parts:
+  clip     track            slot found  owned  notes
+  drums    Anthem Drums     0    yes    yes    2
+  bass     Anthem Bass      0    yes    no     2
+[20:22:06] A(Live): CONFLICT: your local bass clip differs from the session's — revert bass to take the session version or claim bass.
+  revert bass  - discard the local edit and re-apply the shared version
+  claim bass   - take ownership (only if the owner is offline / released it)
+[20:29:45] Live's bass clip was not empty -> conflict raised; typing 'revert bass' for the host
+[20:29:45] A(Live): reverting bass to the shared version
+
+*** Draw/move/delete notes in Live's 'Anthem Drums' clip now. ***
+
+[20:29:46] sim guest drew bass note (36, 0.0, 0.5) -> should appear in Live's Anthem Bass
+[20:29:46] sim guest's DRUMS clip now has 2 notes (from Live): [(70, 0.5, 0.25, 100.0, False), (72, 1.5, 0.25, 100.0, False)]
+[20:29:49] sim guest drew bass note (36, 1.0, 0.5) -> should appear in Live's Anthem Bass
+[20:29:52] sim guest drew bass note (43, 1.5, 0.25) -> should appear in Live's Anthem Bass
+[20:29:55] sim guest drew bass note (41, 2.0, 0.75) -> should appear in Live's Anthem Bass
+[20:29:58] sim guest drew bass note (36, 3.0, 0.5) -> should appear in Live's Anthem Bass
+[20:30:01] sim guest drew bass note (38, 3.5, 0.5) -> should appear in Live's Anthem Bass
+[20:30:04] sim guest changed velocity of two bass notes
+[20:30:28] A(Live): relay: connected
+script: connected bound
+session=Cccbnjxv6klP7pbT role=host participant=p-live-host last_seq=9 set=None pending_ops=0
+  clip     owner  found  rev   state     notes
+  drums    you    yes    1     ok        2
+  bass     peer   yes    8     ok        6
+op_ack rtt: n=1 median=1ms p95=1ms
+applied.ms: n=8 median=1.6 p95=5.0
+detect→companion lag: no samples
+[20:30:29] A(Live): script: disconnected (waiting for Live to reconnect)
+[20:30:29] B(sim): script: disconnected (waiting for Live to reconnect)

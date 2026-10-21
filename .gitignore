@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+*.tmp
+# local runtime state never belongs in the repo
+.anthem/
+*.token
+relay-state.json

@@ -1,0 +1,58 @@
+[14:55:47] relay on 127.0.0.1:50210
+[14:55:47] A(Live): script: listening on 127.0.0.1:9800 for the Live Remote Script
+[14:55:47] A(Live): relay: connecting to 127.0.0.1:50210
+[14:55:47] A(Live): relay: connected
+[14:55:47] A(Live): relay: welcome (session LXLMBU7uSz_S44vb) - full resync from snapshot, seq=0
+[14:55:47] A(Live): session LXLMBU7uSz_S44vb  role=host  invite code: CCA170DE
+[14:55:47] A(Live): presence: host(you) online
+[14:55:47] A(Live): ownership: drums -> you
+[14:55:47] A(Live): ownership: bass -> guest
+[14:55:47] session LXLMBU7uSz_S44vb code CCA170DE
+[14:55:47] B(sim): script: listening on 127.0.0.1:9810 for the Live Remote Script
+[14:55:47] B(sim): relay: connecting to 127.0.0.1:50210
+[14:55:47] B(sim): relay: connected
+[14:55:47] B(sim): relay: welcome (session LXLMBU7uSz_S44vb) - full resync from snapshot, seq=0
+[14:55:47] B(sim): session LXLMBU7uSz_S44vb  role=guest  invite code: CCA170DE
+[14:55:47] B(sim): presence: host(peer) online, guest(you) online
+[14:55:47] B(sim): ownership: drums -> p-live-host
+[14:55:47] B(sim): ownership: bass -> you
+[14:55:47] A(Live): presence: host(you) online, guest(peer) online
+[14:55:47] A(Live): ownership: drums -> you
+[14:55:47] A(Live): ownership: bass -> p-sim-guest
+[14:55:48] B(sim): script: Live connected
+[14:55:48] B(sim): script: hello from Live 12.3.8 set='Test'
+[14:55:48] B(sim): Supported parts:
+  clip     track            slot found  owned  notes
+  drums    Anthem Drums     0    yes    no     0
+  bass     Anthem Bass      0    yes    yes    0
+[14:55:48] A(Live): script: Live connected
+[14:55:48] A(Live): script: hello from Live 12.4.1 set=''
+[14:55:48] bound: Live=True sim=True
+
+*** Draw/move/delete notes in Live's 'Anthem Drums' clip now. ***
+
+[14:55:48] sim guest drew bass note (36, 0.0, 0.5) -> should appear in Live's Anthem Bass
+[14:55:48] sim guest's DRUMS clip now has 0 notes (from Live): []
+[14:55:48] A(Live): Supported parts:
+  clip     track            slot found  owned  notes
+  drums    Anthem Drums     0    yes    yes    3
+  bass     Anthem Bass      0    yes    no     2
+[14:55:51] sim guest drew bass note (36, 1.0, 0.5) -> should appear in Live's Anthem Bass
+[14:55:51] sim guest's DRUMS clip now has 3 notes (from Live): [(51, 0.75, 0.75, 100.0, False), (51, 2.25, 0.75, 100.0, False), (51, 3.0, 0.75, 100.0, False)]
+[14:55:54] sim guest drew bass note (43, 1.5, 0.25) -> should appear in Live's Anthem Bass
+[14:55:57] sim guest drew bass note (41, 2.0, 0.75) -> should appear in Live's Anthem Bass
+[14:56:00] sim guest drew bass note (36, 3.0, 0.5) -> should appear in Live's Anthem Bass
+[14:56:03] sim guest drew bass note (38, 3.5, 0.5) -> should appear in Live's Anthem Bass
+[14:56:06] sim guest changed velocity of two bass notes
+[14:57:33] sim guest's DRUMS clip now has 6 notes (from Live): [(37, 0.75, 0.25, 100.0, False), (43, 1.75, 0.25, 100.0, False), (51, 0.75, 0.75, 100.0, False), (51, 2.25, 0.75, 100.0, False), (51, 3.0, 0.75, 100.0, False), (54, 0.75, 0.25, 100.0, False)]
+[14:57:36] sim guest's DRUMS clip now has 5 notes (from Live): [(37, 0.75, 0.25, 100.0, False), (43, 1.75, 0.25, 100.0, False), (51, 2.25, 0.75, 100.0, False), (51, 3.0, 0.75, 100.0, False), (54, 0.75, 0.25, 100.0, False)]
+[14:58:18] A(Live): relay: connected
+script: connected bound
+session=LXLMBU7uSz_S44vb role=host participant=p-live-host last_seq=13 set= pending_ops=0
+  clip     owner  found  rev   state     notes
+  drums    you    yes    5     ok        5
+  bass     peer   yes    8     ok        6
+op_ack rtt: n=5 median=1ms p95=2ms
+applied.ms: n=8 median=1.3 p95=3.0
+[14:58:19] A(Live): script: disconnected (waiting for Live to reconnect)
+[14:58:19] B(sim): script: disconnected (waiting for Live to reconnect)

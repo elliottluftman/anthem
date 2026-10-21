@@ -1,0 +1,38 @@
+waiting for the Anthem Remote Script to connect (is Live running with Anthem selected?)
+script connected: {'type': 'script_hello', 'script_version': '0.1.0', 'live_version': '12.4.1', 'set_name': '', 'set_path': '', 'v': 1}
+PASS discover/create template tracks+clips [{'clip': 'drums', 'found': True, 'track_name': 'Anthem Drums', 'slot': 0, 'owned': True, 'note_count': 0}, {'clip': 'bass', 'found': True, 'track_name': 'Anthem Bass', 'slot': 0, 'owned': False, 'note_count': 2}]
+PASS read existing notes of owned clip 0 notes
+PASS apply add 3 notes apply=1.6ms roundtrip=100.9ms
+FAIL apply move+resize+velocity+mute+pitch via apply_note_modifications (pitch falls back if needed) apply=0.6ms got=[(38, 0.5, 0.75, 64.0, True), (43, 1.0, 0.25, 80.0, False), (60, 2.5, 1.0, 100.0, False)]
+FAIL apply delete note apply=0.4ms
+PASS snapshot apply + unchanged snapshot is a no-op ms1=0.2 ms2=0.2
+PASS no feedback/conflict after own writes None
+PASS notes listener detects edit on owned clip (API-originated) detect delay=20ms, reported 179ms after apply
+PASS listener detects deletion [3, 4]
+PASS clean up: drums clip empty 
+
+=== Phase A summary ===
+  [x] discover/create template tracks+clips  [{'clip': 'drums', 'found': True, 'track_name': 'Anthem Drums', 'slot': 0, 'owned': True, 'note_count': 0}, {'clip': 'bass', 'found': True, 'track_name': 'Anthem Bass', 'slot': 0, 'owned': False, 'note_count': 2}]
+  [x] read existing notes of owned clip  0 notes
+  [x] apply add 3 notes  apply=1.6ms roundtrip=100.9ms
+  [ ] apply move+resize+velocity+mute+pitch via apply_note_modifications (pitch falls back if needed)  apply=0.6ms got=[(38, 0.5, 0.75, 64.0, True), (43, 1.0, 0.25, 80.0, False), (60, 2.5, 1.0, 100.0, False)]
+  [ ] apply delete note  apply=0.4ms
+  [x] snapshot apply + unchanged snapshot is a no-op  ms1=0.2 ms2=0.2
+  [x] no feedback/conflict after own writes  None
+  [x] notes listener detects edit on owned clip (API-originated)  detect delay=20ms, reported 179ms after apply
+  [x] listener detects deletion  [3, 4]
+  [x] clean up: drums clip empty  
+
+=== Phase B: now edit the 'Anthem Drums' clip in Live's piano roll. ===
+Draw a note; move it; resize it; change its velocity; copy/paste a few; delete.
+Each detected native edit prints below. Ctrl-C when done.
+
+[14:36:27] NATIVE EDIT on drums: +1 ~0 -0  (debounce+transport 194 ms) [(50, 0.25, 0.25, 100.0)]
+[14:36:39] NATIVE EDIT on drums: +0 ~1 -0  (debounce+transport 162 ms) [(50, 0.5, 0.25, 100.0)]
+[14:36:40] NATIVE EDIT on drums: +0 ~1 -0  (debounce+transport 189 ms) [(50, 0.75, 0.25, 100.0)]
+[14:36:40] NATIVE EDIT on drums: +0 ~1 -0  (debounce+transport 174 ms) [(51, 0.75, 0.25, 100.0)]
+[14:36:41] NATIVE EDIT on drums: +0 ~1 -0  (debounce+transport 198 ms) [(51, 0.75, 0.75, 100.0)]
+[14:36:57] NATIVE EDIT on drums: +1 ~0 -0  (debounce+transport 172 ms) [(51, 1.5, 0.75, 100.0)]
+[14:36:57] NATIVE EDIT on drums: +1 ~0 -0  (debounce+transport 191 ms) [(51, 2.25, 0.75, 100.0)]
+[14:36:58] NATIVE EDIT on drums: +1 ~0 -0  (debounce+transport 173 ms) [(51, 3.0, 0.75, 100.0)]
+[14:37:00] NATIVE EDIT on drums: +0 ~0 -1  (debounce+transport 151 ms) []
