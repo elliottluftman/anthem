@@ -1,0 +1,76 @@
+Live 12.4.3  set=''  tracks=4  band before: 850602 bytes @21:12:41
+
+==== plugins tree ====
+- 'Plug-Ins' folder=False loadable=False device=False kids=3 uri=query:Plugins
+  - 'AUv2' folder=True loadable=False device=False kids=3 uri=query:Plugins#AUv2
+    - 'Apple' folder=True loadable=False device=False kids=26 uri=query:Plugins#AUv2:Apple
+      - 'AUBandpass' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUBandpass
+      - 'AUDelay' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUDelay
+      - 'AUDistortion' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUDistortion
+      - 'AUDynamicsProcessor' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUDynamicsProcessor
+      - 'AUFilter' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUFilter
+      - 'AUGraphicEQ' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUGraphicEQ
+      - 'AUHighShelfFilter' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUHighShelfFilter
+      - 'AUHipass' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUHipass
+      - 'AULowpass' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AULowpass
+      - 'AULowShelfFilter' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AULowShelfFilter
+      - 'AUMatrixReverb' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUMatrixReverb
+      - 'AUMIDISynth' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUMIDISynth
+      - 'AUMultibandCompressor' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUMultibandCompressor
+      - 'AUNBandEQ' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUNBandEQ
+      - 'AUNetSend' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUNetSend
+      - 'AUNewPitch' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUNewPitch
+      - 'AUParametricEQ' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUParametricEQ
+      - 'AUPeakLimiter' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUPeakLimiter
+      - 'AUPitch' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUPitch
+      - 'AUReverb2' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUReverb2
+      - 'AURogerBeep' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AURogerBeep
+      - 'AURoundTripAAC' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AURoundTripAAC
+      - 'AUSampleDelay' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUSampleDelay
+      - 'AUSampler' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUSampler
+      - 'AUSoundIsolation' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:AUSoundIsolation
+      - 'DLSMusicDevice' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Apple:DLSMusicDevice
+    - 'Splice' folder=True loadable=False device=False kids=5 uri=query:Plugins#AUv2:Splice
+      - 'Astra' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Splice:Astra
+      - 'Beatmaker' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Splice:Beatmaker
+      - 'Splice Bridge' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Splice:Splice%20Bridge
+      - 'Splice INSTRUMENT' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Splice:Splice%20INSTRUMENT
+      - 'Splice Sounds' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Splice:Splice%20Sounds
+    - 'Xfer Records' folder=True loadable=False device=False kids=2 uri=query:Plugins#AUv2:Xfer%20Records
+      - 'Serum 2' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Xfer%20Records:Serum%202
+      - 'Serum 2 FX' folder=False loadable=True device=False kids=0 uri=query:Plugins#AUv2:Xfer%20Records:Serum%202%20FX
+  - 'VST' folder=True loadable=False device=False kids=1 uri=query:Plugins#VST
+    - 'Splice' folder=True loadable=False device=False kids=1 uri=query:Plugins#VST:Local:Splice
+      - 'Beatmaker' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST:Local:Splice:Beatmaker
+  - 'VST3' folder=True loadable=False device=False kids=2 uri=query:Plugins#VST3
+    - 'Splice' folder=True loadable=False device=False kids=5 uri=query:Plugins#VST3:Splice
+      - 'Astra' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Splice:Astra
+      - 'Beatmaker' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Splice:Beatmaker
+      - 'Splice Bridge' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Splice:Splice%20Bridge
+      - 'Splice INSTRUMENT' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Splice:Splice%20INSTRUMENT
+      - 'Splice Sounds' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Splice:Splice%20Sounds
+    - 'Xfer Records' folder=True loadable=False device=False kids=2 uri=query:Plugins#VST3:Xfer%20Records
+      - 'Serum 2' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Xfer%20Records:Serum%202
+      - 'Serum 2 FX' folder=False loadable=True device=False kids=0 uri=query:Plugins#VST3:Xfer%20Records:Serum%202%20FX
+
+serum candidates: [('Serum 2', 'query:Plugins#AUv2:Xfer%20Records:Serum%202'), ('Serum 2 FX', 'query:Plugins#AUv2:Xfer%20Records:Serum%202%20FX'), ('Serum 2', 'query:Plugins#VST3:Xfer%20Records:Serum%202'), ('Serum 2 FX', 'query:Plugins#VST3:Xfer%20Records:Serum%202%20FX')]
+
+load_item('Serum 2') took 726.1 ms; devices now: ['PluginDevice']
+type='PluginDevice' class_name='PluginDevice' class_display_name='Serum 2' name='Serum 2'
+is PluginDevice: True
+is_editor_open=False (has listener api: True)
+parameters exposed: 1
+   'Device On' value=1.000 range=[0.000,1.000] quantized=True automation=0
+get_parameter_names(0,-1): 2623 names; first 25: ['Main Vol', 'Main Tuning', 'Amp', 'Porta Time', 'Porta Curve', 'Bend Up', 'Bend Down', 'Pitch Bend', 'Mod Wheel', 'Mono Toggle', 'Legato', 'Porta Always', 'Porta Scaled', 'Swing', 'Swing Div', 'Transpose', 'Bypass', 'Direct Vol', 'Bus 1 Vol', 'Bus 2 Vol', 'A Enable', 'A Level', 'A Pan', 'A Octave', 'A Semi']
+presets: 1; first 15: ['Default']
+selected_preset_index=0
+latency_in_ms=0.0 can_compare_ab=False track.can_be_frozen=True is_frozen=False
+listener is_editor_open: attach ok=True
+listener selected_preset_index: attach ok=True
+listener presets: attach ok=True
+listener parameters: attach ok=True
+editor was not auto-opened
+band after load: 875043 bytes @21:15:28
+audio track '3-Audio' input types: ['Ext. In', 'Resampling', '2-909 Core Kit', '4-Audio', 'A-Reverb', 'B-Delay', 'Main', 'No Input']
+song: session_record=False record_mode=False can_undo=True
+probe track deleted; tracks=4; band after delete: 875043 bytes @21:15:28

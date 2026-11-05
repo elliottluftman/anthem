@@ -1,0 +1,8 @@
+Live 12.4.3 set=''
+browser finds dropped .adv: False (search 15 ms) uri=None
+devices after loads: [('AuPluginDevice', 'Serum 2')]
+set is_editor_open=True -> reads False
+set is_editor_open=False -> reads False
+audio track input types: ['']
+serum track not offered as input
+cleanup done; tracks=4

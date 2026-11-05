@@ -10,7 +10,7 @@ proves the Live integration and the synchronization path.
 * `relay/` — relay server (auth, ownership, ordering; runs locally or on a host, optional TLS)
 * `anthem_core/` — protocol + session logic shared by relay, companion and tests
 * `tools/live_verify.py` — Milestone-1 driver that exercises the script inside a real Live
-* `docs/` — PROTOCOL, SETUP, TEST_CHECKLIST, CAPABILITY_MATRIX, LIMITATIONS, HANDOFF
+* `docs/` — PROTOCOL, SETUP, TEST_CHECKLIST, CAPABILITY_MATRIX, LIMITATIONS, HANDOFF, PLUGIN_RESEARCH (plug-in state sync / hear-only rendering: verified API facts + workarounds)
 
 ## Status — what is proven, honestly
 

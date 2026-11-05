@@ -19,7 +19,7 @@ been verified, and what is still untested. The detailed documents it points to l
 | Core | `anthem_core/protocol.py`, `anthem_core/session.py` | Wire protocol (NDJSON, strict validation, size caps) and session/ownership/ordering logic shared by relay and tests. |
 | Tools | `tools/live_verify.py`, `tools/demo_one_live.py` | Drivers that exercise the Remote Script inside a real Live, and a real-Live-plus-simulated-guest demo through the real relay/companions. |
 | Tests | `tests/` | 156 pytest tests: protocol, session, relay over real sockets (incl. TLS), companion state machine, Remote Script against mocked Live objects, headless surface, two-simulated-clients end-to-end. |
-| Docs | `docs/` | `SETUP.md` (participant instructions), `TEST_CHECKLIST.md` (two-computer acceptance test), `PROTOCOL.md`, `CAPABILITY_MATRIX.md` (what was verified in Live and how), `LIMITATIONS.md`, `HANDOFF.md` (architecture, risks, next steps). |
+| Docs | `docs/` | `SETUP.md` (participant instructions), `TEST_CHECKLIST.md` (two-computer acceptance test), `PROTOCOL.md`, `CAPABILITY_MATRIX.md` (what was verified in Live and how), `LIMITATIONS.md`, `HANDOFF.md` (architecture, risks, next steps), `PLUGIN_RESEARCH.md` (2026-11-04: how third-party plug-ins can be synced or rendered — API facts verified in Live 12.4.3, workarounds, next tests). |
 
 Scope of the prototype (on purpose): **MIDI notes only**, in **two fixed Session clips** —
 `Anthem Drums` slot 1 (owned by the host) and `Anthem Bass` slot 1 (owned by the guest).
@@ -94,6 +94,8 @@ Suggested next steps, in order:
    the clip (clip-name suffix or similar) instead of binding by track name + slot.
 3. Minimal companion UI (tray/menu-bar app) replacing the terminal; invite deep links.
 4. Playback/tempo sync as its own design (clock, scheduling, latency) — out of scope today.
+   Plug-in state sync and "hear-only" rendering for missing plug-ins: see `docs/PLUGIN_RESEARCH.md`
+   (API verified in Live 12.4.3; nothing implemented yet).
 5. Hosted relay (TLS, create token) for testers who are not on one LAN.
 
 Known open risks: Ableton does not document the Remote Script API for project manipulation

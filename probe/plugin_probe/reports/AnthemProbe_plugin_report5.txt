@@ -1,0 +1,9 @@
+user_library children: ['Clips', 'Defaults', 'Grooves', 'Presets', 'Remote Scripts', 'Samples', 'Templates']
+Hybrid Reverb folder found: True
+   item 'Anthem Probe Preset.adv' loadable=True device=False uri=query:UserLibrary#Presets:Audio%20Effects:Hybrid%20Reverb:Anthem%20Probe%20Preset.adv
+   item 'Clap Hybrid-1.adv' loadable=True device=False uri=query:UserLibrary#Presets:Audio%20Effects:Hybrid%20Reverb:Clap%20Hybrid-1.adv
+   item 'Clap Hybrid.adv' loadable=True device=False uri=query:UserLibrary#Presets:Audio%20Effects:Hybrid%20Reverb:Clap%20Hybrid.adv
+user_folders: []
+current_project: Current Project ['Samples']
+load_item('Clap Hybrid.adv') -> ['Clap Hybrid'] in 161 ms
+done; tracks=4

@@ -26,6 +26,10 @@ deviation, release velocity) of **fixed Session View clips**: `Anthem Drums` slo
   arrangement clips, audio, samples, warping, comping, MPE/expression beyond the
   per-note fields above, tempo/time signature, playback/transport.
 
+  Third-party plug-ins specifically: what the API can and cannot reach, and the two
+  workarounds (save-and-ship state, hear-only renders) are researched in
+  `PLUGIN_RESEARCH.md`; none of it is implemented.
+
 Unsupported data is **preserved**: edits are id-based (`apply_note_modifications`),
 so note expression attached to a note survives remote modifications; the receiver
 never clears and recreates a whole clip unless the content actually differs.

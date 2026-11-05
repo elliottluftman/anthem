@@ -1,0 +1,5 @@
+Live 12.4.3 set='' dialogs=0
+try 1 at +0s: folder=True items=['Serum 2 Roundtrip v2.adv']
+load_item('Serum 2 Roundtrip v2.adv') 3 ms -> devices []
+dialogs open: 0 -> 0; message=''
+cleanup done; tracks=4

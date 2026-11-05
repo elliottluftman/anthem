@@ -1,0 +1,14 @@
+Live 12.4.3 set=''
+set_has_unsaved_changes err 'bool' object is not callable
+browser finds dropped .adv now (62s later): False uri=None
+loaded PluginDevice Serum 2 uri query:Plugins#VST3:Xfer%20Records:Serum%202
+set is_editor_open=True -> immediate read True
+600ms later: is_editor_open reads True
+set False -> reads False
+audio track input types (after delay): ['Ext. In', 'Resampling', '2-909 Core Kit', '3-Audio', '4-Audio', 'Anthem Plugin Probe', 'A-Reverb', 'B-Delay', 'Main', 'No Input']
+input now: Anthem Plugin Probe channels: ['Pre FX', 'Post FX', 'Post Mixer']
+fired; is_playing=False session_record=False arm=True
+stopped after 2.52s; is_playing=True has_clip=True is_recording=True
+recorded clip: audio=True length=63072000.00 beats file='~/Music/Ableton/Live Recordings/2026-11-04 210937 Temp Project/Samples/Recorded/Anthem Probe Render 0001 [2026-11-04 211757].aif'
+file size 720896
+cleanup done; tracks=4

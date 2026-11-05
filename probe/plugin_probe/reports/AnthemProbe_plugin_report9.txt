@@ -1,0 +1,6 @@
+Live 12.4.3 set=''
+try 1 at +0s: folder=False kids=[]
+try 2 at +5s: folder=True kids=['Anthem Probe Set.als']
+- 'Anthem Probe' loadable=False folder=True device=False kids=1 uri=query:UserLibrary#Clips:Anthem%20Probe
+  - 'Anthem Probe Set.als' loadable=True folder=False device=False kids=0 uri=query:UserLibrary#Clips:Anthem%20Probe:Anthem%20Probe%20Set.als
+serum candidates: []
