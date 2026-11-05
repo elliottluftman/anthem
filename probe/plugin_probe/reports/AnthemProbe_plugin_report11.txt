@@ -1,0 +1,13 @@
+Live 12.4.3 set='' tempo=120.0
+track devices: [{'name': 'Serum 2', 'cls': 'PluginDevice', 'plugin': True}]
+installed plug-ins: ['AUBandpass', 'AUDelay', 'AUDistortion', 'AUDynamicsProcessor', 'AUFilter', 'AUGraphicEQ', 'AUHighShelfFilter', 'AUHipass', 'AULowShelfFilter', 'AULowpass', 'AUMIDISynth', 'AUMatrixReverb', 'AUMultibandCompressor', 'AUNBandEQ', 'AUNetSend', 'AUNewPitch', 'AUParametricEQ', 'AUPeakLimiter', 'AUPitch', 'AUReverb2', 'AURogerBeep', 'AURoundTripAAC', 'AUSampleDelay', 'AUSampler', 'AUSoundIsolation', 'Astra', 'Beatmaker', 'DLSMusicDevice', 'Serum 2', 'Serum 2 FX', 'Splice Bridge', 'Splice INSTRUMENT', 'Splice Sounds']
+capture started: state route
++0.47s state -> record
++4.49s state -> settle
+render_captured: {'type': 'render_captured', 'clip': 'drums', 'render_id': 'live1', 'ok': True, 'path': '~/Music/Ableton/Live Recordings/2026-11-04 210937 Temp Project/Samples/Recorded/Anthem Render Bus 0001 [2026-11-04 215712].aif', 'beats': 8.0, 'ms': 5648}
+converted: {'sample_rate': 48000, 'channels': 2, 'bits': 24, 'size': 1152044, 'sha256': '144015996fd4b0af0a30e834765f4b9818f4cb606feea83907c682fbf4496511', 'n_chunks': 8}
+audio check: samples=384000 peak=0.455 rms=0.0170 (full scale 1.0)
+apply_render -> True None
+render track 'Anthem Drums (render)' audio_input=True clip: audio=True length=8.000 looping=True warping=True warp_mode=4 name='render live1abc' file='/private/tmp/claude-501/-Users-elliottluftman-Anthem/1fcc6b12-957f-4940-8220-6a82c3a3dc20/scratchpad/live_render.wav'
+clip loop_start=0.000 loop_end=8.000 start_marker=0.000 end_marker=8.000
+cleanup done; tracks=['1-MIDI', '2-909 Core Kit', '3-Audio', '4-Audio'] playing=False

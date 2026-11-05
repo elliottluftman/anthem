@@ -13,7 +13,10 @@ resuming clients receive ``resync=true`` and a full snapshot.
 """
 import argparse
 import asyncio
+import base64
+import binascii
 import collections
+import hashlib
 import hmac
 import json
 import logging
@@ -49,7 +52,11 @@ SWEEP_INTERVAL = 60.0
 PERSIST_DEBOUNCE = 1.0
 MAX_WRITE_BUFFER = 8 * 1024 * 1024  # slow peer -> drop it instead of growing forever
 
-CLIENT_TYPES = {"create", "join", "hello", "op", "claim", "release", "ping"}
+CLIENT_TYPES = {"create", "join", "hello", "op", "claim", "release", "ping", "info", "blob_put", "blob_get"}
+# Render files live in memory only (they are reproducible by their owner); bounded per session
+# and in total. They go away with the relay process; the welcome tells clients which are present.
+MAX_BLOB_BYTES_PER_SESSION = 128 * 1024 * 1024
+MAX_BLOB_BYTES_TOTAL = 1024 * 1024 * 1024
 AUTH_TYPES = {"create", "join", "hello"}
 # Pre-auth failures that count toward the per-IP throttle: anything a guesser or a prober would
 # trigger. Any protocol.ProtocolError before auth (bad JSON, bad version, oversized line) counts
@@ -128,6 +135,7 @@ class RelayServer(object):
         self.ip_conns = collections.Counter()   # ip -> open connections
         self.created = {}       # ip -> deque of monotonic times of session creation
         self.failures = {}      # ip -> deque of monotonic times of failed pre-auth attempts
+        self.blobs = {}         # session id -> BlobStore (render files, memory only)
         self._server = None
         self._sweeper = None
         self._persist_handle = None
@@ -169,6 +177,7 @@ class RelayServer(object):
                     self.codes.pop(s.code, None)
                     del self.sessions[sid]
                     self.touched.pop(sid, None)
+                    self.blobs.pop(sid, None)
                     self._schedule_persist()
             for table, window in ((self.failures, FAIL_WINDOW), (self.created, SESSION_CREATE_WINDOW)):
                 for ip in list(table):
@@ -249,6 +258,19 @@ class RelayServer(object):
 
     def _broadcast_ownership(self, s, clip):
         self._broadcast(s, {"type": "ownership", "clip": clip, "owner": s.owner_of(clip)})
+
+    def _blob_store(self, s):
+        st = self.blobs.get(s.id)
+        if st is None:
+            st = self.blobs[s.id] = BlobStore()
+        return st
+
+    def _total_blob_bytes(self):
+        return sum(st.used for st in self.blobs.values())
+
+    def _snapshot(self, s):
+        st = self.blobs.get(s.id)
+        return s.snapshot(lambda bid: st is not None and st.complete(bid))
 
     # --- connection handling ------------------------------------------------------
     async def _handle(self, reader, writer):
@@ -353,6 +375,12 @@ class RelayServer(object):
                 conn.write({"type": "pong"})
             elif t == "op":
                 self._handle_op(conn, s, pid, msg)
+            elif t == "info":
+                self._handle_info(conn, s, pid, msg)
+            elif t == "blob_put":
+                self._handle_blob_put(conn, s, pid, msg)
+            elif t == "blob_get":
+                self._handle_blob_get(conn, s, pid, msg)
             else:
                 self._handle_ownership(conn, s, pid, t, msg)
             if conn.strikes >= MAX_STRIKES:
@@ -428,7 +456,7 @@ class RelayServer(object):
         ops = None if last_seq > s.seq else s.ops_since(last_seq)
         welcome = {
             "type": "welcome", "session": s.id, "code": s.code, "participant": pid, "role": role,
-            "seq": int(s.seq), "snapshot": s.snapshot(), "ops": ops, "resync": ops is None,
+            "seq": int(s.seq), "snapshot": self._snapshot(s), "ops": ops, "resync": ops is None,
         }
         try:
             line = protocol.encode(welcome)
@@ -451,6 +479,9 @@ class RelayServer(object):
         self._broadcast(s, {"type": "presence", "participants": s.presence()})
         for clip in s.clips:
             self._broadcast_ownership(s, clip)
+        for other, info in s.info.items():     # what the other side has installed, if it told us
+            if other != pid:
+                conn.write(dict(info, type="info", participant=other))
         log.info("session %s: %s online as %s (last_seq=%d, resync=%s)", s.id, pid, role,
                  last_seq, welcome["resync"])
         return s, pid
@@ -481,6 +512,12 @@ class RelayServer(object):
             log.debug("session %s: op %s from %s rejected: relayed form too large", s.id, op_id, pid)
             conn.write({"type": "reject", "op_id": op_id, "reason": "clip too large"})
             return
+        if op["kind"] == "render":
+            st = self.blobs.get(s.id)
+            r = p
+            if st is None or not st.complete(r["render_id"]) or st.meta(r["render_id"]) != (r["size"], r["sha256"]):
+                conn.write({"type": "reject", "op_id": op_id, "reason": "render blob missing or mismatched"})
+                return
         try:
             seq, rev, dup = s.apply_op(pid, op)
         except Rejected as e:
@@ -490,8 +527,8 @@ class RelayServer(object):
         conn.write({"type": "op_ack", "op_id": op_id, "seq": seq, "rev": rev, "duplicate": dup})
         if dup:
             return
-        n = len(p["notes"]) if op["kind"] == "snapshot" else \
-            len(p["added"]) + len(p["modified"]) + len(p["removed"])
+        n = len(p["notes"]) if op["kind"] == "snapshot" else (
+            0 if op["kind"] == "render" else len(p["added"]) + len(p["modified"]) + len(p["removed"]))
         log.debug("session %s: seq=%d %s/%s rev=%d by %s (%d notes)", s.id, seq, op["clip"],
                   op["kind"], rev, pid, n)
         if (seq, rev) == (relayed["seq"], relayed["rev"]):
@@ -499,6 +536,59 @@ class RelayServer(object):
         else:  # cannot happen for a freshly accepted op; kept so a future change stays correct
             self._broadcast(s, dict(relayed, seq=seq, rev=rev), exclude=conn)
         self._schedule_persist()
+
+    # --- info / render blobs ---------------------------------------------------------
+    def _handle_info(self, conn, s, pid, msg):
+        try:
+            info = protocol.validate_info(msg)
+        except protocol.ProtocolError as e:
+            conn.strikes += 1
+            conn.write({"type": "reject", "op_id": None, "reason": str(e)})
+            return
+        s.info[pid] = info
+        self._broadcast(s, dict(info, type="info", participant=pid), exclude=conn)
+
+    def _handle_blob_put(self, conn, s, pid, msg):
+        try:
+            blob, idx, n, size, data = protocol.validate_blob_chunk(msg)
+            raw = base64.b64decode(data, validate=True)
+        except (protocol.ProtocolError, ValueError, binascii.Error) as e:
+            conn.strikes += 1
+            conn.write({"type": "blob_ack", "blob": msg.get("blob") if protocol.valid_id(msg.get("blob")) else None,
+                        "idx": msg.get("idx") if isinstance(msg.get("idx"), int) else None,
+                        "ok": False, "error": "invalid chunk: %s" % e, "complete": False})
+            return
+        # Only a clip owner may upload (a render is always for an owned clip); anyone online may download.
+        if not any(c["owner"] == pid for c in s.clips.values()):
+            conn.write({"type": "blob_ack", "blob": blob, "idx": idx, "ok": False, "error": "not an owner", "complete": False})
+            return
+        st = self._blob_store(s)
+        if self._total_blob_bytes() + len(raw) > MAX_BLOB_BYTES_TOTAL:
+            conn.write({"type": "blob_ack", "blob": blob, "idx": idx, "ok": False, "error": "relay storage full", "complete": False})
+            return
+        try:
+            complete = st.put(blob, idx, n, size, raw, pid)
+        except ValueError as e:
+            conn.strikes += 1
+            conn.write({"type": "blob_ack", "blob": blob, "idx": idx, "ok": False, "error": str(e), "complete": False})
+            return
+        conn.write({"type": "blob_ack", "blob": blob, "idx": idx, "ok": True, "complete": complete})
+        self.touched[s.id] = time.time()
+
+    def _handle_blob_get(self, conn, s, pid, msg):
+        blob, idx = msg.get("blob"), msg.get("idx")
+        if not protocol.valid_id(blob) or not isinstance(idx, int) or isinstance(idx, bool) or idx < 0:
+            conn.strikes += 1
+            conn.write({"type": "blob_chunk", "blob": blob if protocol.valid_id(blob) else None, "ok": False, "error": "bad request"})
+            return
+        st = self.blobs.get(s.id)
+        chunk = st.get(blob, idx) if st is not None else None
+        if chunk is None:
+            conn.write({"type": "blob_chunk", "blob": blob, "idx": idx, "ok": False, "error": "unknown blob or chunk"})
+            return
+        n, size, raw = chunk
+        conn.write({"type": "blob_chunk", "blob": blob, "idx": idx, "n": n, "size": size, "ok": True,
+                    "data": base64.b64encode(raw).decode("ascii")})
 
     def _handle_ownership(self, conn, s, pid, t, msg):
         clip = msg.get("clip")
@@ -514,6 +604,66 @@ class RelayServer(object):
         log.info("session %s: %s %s %s -> owner %s", s.id, pid, t, clip, s.owner_of(clip))
         self._broadcast_ownership(s, clip)
         self._schedule_persist()
+
+
+class BlobStore(object):
+    """Render files of one session, kept in memory as chunks. Bounded by bytes; when a new blob
+    does not fit, the oldest complete blobs go first (they are reproducible by their owner)."""
+
+    def __init__(self, limit=MAX_BLOB_BYTES_PER_SESSION):
+        self.limit = limit
+        self.blobs = collections.OrderedDict()   # blob id -> {n, size, chunks{idx: bytes}, owner, sha}
+        self.used = 0
+
+    def put(self, blob, idx, n, size, raw, owner):
+        """Store one chunk. Returns True when the blob is complete. Raises ValueError on a bad chunk."""
+        b = self.blobs.get(blob)
+        if b is None:
+            if size > self.limit:
+                raise ValueError("blob too large")
+            while self.used + size > self.limit and self.blobs:
+                self._evict_oldest(keep=blob)
+            if self.used + size > self.limit:
+                raise ValueError("session storage full")
+            b = self.blobs[blob] = {"n": n, "size": size, "chunks": {}, "owner": owner, "sha": None}
+        if b["owner"] != owner or b["n"] != n or b["size"] != size:
+            raise ValueError("chunk does not match blob")
+        expected = protocol.BLOB_CHUNK_BYTES if idx < n - 1 else size - protocol.BLOB_CHUNK_BYTES * (n - 1)
+        if len(raw) != expected:
+            raise ValueError("chunk length mismatch")
+        if idx in b["chunks"]:
+            return self.complete(blob)
+        b["chunks"][idx] = raw
+        self.used += len(raw)
+        if len(b["chunks"]) == n:
+            h = hashlib.sha256()
+            for i in range(n):
+                h.update(b["chunks"][i])
+            b["sha"] = h.hexdigest()
+            self.blobs.move_to_end(blob)
+            return True
+        return False
+
+    def _evict_oldest(self, keep=None):
+        for bid, b in list(self.blobs.items()):
+            if bid != keep:
+                self.used -= sum(len(c) for c in b["chunks"].values())
+                del self.blobs[bid]
+                return
+
+    def complete(self, blob):
+        b = self.blobs.get(blob)
+        return b is not None and b["sha"] is not None
+
+    def meta(self, blob):
+        b = self.blobs.get(blob)
+        return (b["size"], b["sha"]) if b and b["sha"] else None
+
+    def get(self, blob, idx):
+        b = self.blobs.get(blob)
+        if b is None or b["sha"] is None or idx not in b["chunks"]:
+            return None
+        return b["n"], b["size"], b["chunks"][idx]
 
 
 def _tokens_match(a, b):

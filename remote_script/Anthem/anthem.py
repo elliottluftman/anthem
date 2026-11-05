@@ -16,6 +16,7 @@ from _Framework.ControlSurface import ControlSurface
 
 from .bridge import Bridge
 from .clipbinding import ClipBinding
+from . import render as rendermod
 
 SCRIPT_VERSION = "0.1.0"
 TICK_MS = 50
@@ -26,6 +27,9 @@ class Anthem(ControlSurface):
     def __init__(self, c_instance):
         ControlSurface.__init__(self, c_instance)
         self._bindings = {}
+        self._captures = {}       # render_id -> render.RenderCapture in progress (owner side)
+        self._device_tracks = []  # tracks whose device lists we watch (plug-ins added/removed)
+        self._reinventory = False
         self._token_path = TOKEN_PATH
         self._bridge = Bridge(log=self.log)
         self._song = self.song()
@@ -56,6 +60,12 @@ class Anthem(ControlSurface):
         for b in self._bindings.values():
             b.close()
         self._bindings = {}
+        for cap in list(self._captures.values()):
+            try:
+                cap._cleanup()
+            except Exception:  # noqa
+                pass
+        self._captures = {}
         try:
             if self._song.tracks_has_listener(self._on_tracks):
                 self._song.remove_tracks_listener(self._on_tracks)
@@ -79,6 +89,13 @@ class Anthem(ControlSurface):
             now = time.time()
             for b in self._bindings.values():
                 b.tick(now)
+            for rid, cap in list(self._captures.items()):
+                cap.tick(now)
+                if cap.done:
+                    del self._captures[rid]
+            if self._reinventory and not self._captures:
+                self._reinventory = False
+                self._send_inventory()
             if self._bridge.dropped:
                 self._bridge.dropped = False
                 for b in self._bindings.values():
@@ -126,6 +143,10 @@ class Anthem(ControlSurface):
             b = self._bindings.get(m.get("clip"))
             if b is not None:
                 b.set_owned(m.get("owned"))
+        elif t == "render_capture":
+            self._render_capture(m)
+        elif t == "apply_render":
+            self._apply_render(m)
         elif t == "setup_template":
             self._setup_template(m.get("clips") or [])
         elif t == "reload_code":
@@ -147,27 +168,101 @@ class Anthem(ControlSurface):
                 self._bindings[b.clip_id] = b
             except Exception:  # noqa
                 self.log("bind failed for %r: %s" % (c, traceback.format_exc()))
-        self._send({"type": "inventory",
-                    "clips": [b.inventory() for b in self._bindings.values()],
-                    "tracks": [t.name for t in self._song.tracks]})
+        self._watch_devices()
+        self._send_inventory()
         for b in self._bindings.values():
             if b.found:
                 b._on_bound()
         self.show_message("Anthem: bound %d/%d clips" % (
             sum(1 for b in self._bindings.values() if b.found), len(self._bindings)))
 
+    def _send_inventory(self):
+        inv = []
+        for b in self._bindings.values():
+            e = b.inventory()
+            e["devices"] = rendermod.track_devices(b.track) if b.track is not None else []
+            inv.append(e)
+        self._send({"type": "inventory", "clips": inv,
+                    "tracks": [t.name for t in self._song.tracks],
+                    "plugins": self._installed_plugins()})
+
+    def _watch_devices(self):
+        """Re-send the inventory when a plug-in is added to / removed from a bound track."""
+        for t in self._device_tracks:
+            try:
+                if t.devices_has_listener(self._on_devices):
+                    t.remove_devices_listener(self._on_devices)
+            except Exception:  # noqa
+                pass
+        self._device_tracks = []
+        for b in self._bindings.values():
+            if b.track is None:
+                continue
+            try:
+                b.track.add_devices_listener(self._on_devices)
+                self._device_tracks.append(b.track)
+            except Exception:  # noqa
+                pass
+
+    def _on_devices(self):
+        self._reinventory = True      # coalesced; sent from the next tick
+
+    def _installed_plugins(self):
+        try:
+            return rendermod.installed_plugins(Live.Application.get_application())
+        except Exception:  # noqa
+            return []
+
+    # --- renders -------------------------------------------------------------------
+    def _render_capture(self, m):
+        clip_id, rid = str(m.get("clip")), str(m.get("render_id"))
+        b = self._bindings.get(clip_id)
+
+        def fail(why):
+            self._send({"type": "render_captured", "clip": clip_id, "render_id": rid, "ok": False,
+                        "error": why, "ms": 0})
+        if b is None:
+            return fail("clip not bound")
+        if any(not c.done for c in self._captures.values()):
+            return fail("another render is in progress")
+        cap = rendermod.RenderCapture(self._song, clip_id, rid, b, self._send, self.log)
+        cap.start()
+        if not cap.done:
+            self._captures[rid] = cap
+            self.show_message("Anthem: rendering %s (one loop plays while it records)" % clip_id)
+
+    def _apply_render(self, m):
+        clip_id, rid = str(m.get("clip")), str(m.get("render_id"))
+        t0 = time.time()
+        b = self._bindings.get(clip_id)
+        track_name = b.track_name if b is not None else str(m.get("track_name") or clip_id)
+        slot = b.slot if b is not None else int(m.get("slot") or 0)
+        path = str(m.get("path") or "")
+        if not path or not os.path.isfile(path):
+            ok, err = False, "render file missing"
+        else:
+            ok, err = rendermod.apply_render(self._song, track_name, slot, path, rid, self.log)
+        out = {"type": "render_applied", "clip": clip_id, "render_id": rid, "ok": ok,
+               "ms": int((time.time() - t0) * 1000)}
+        if not ok:
+            out["error"] = err
+        else:
+            self.show_message("Anthem: render of %s placed in '%s%s'" % (clip_id, track_name, rendermod.RENDER_SUFFIX))
+        self._send(out)
+
     def _reload_code(self):
         """Developer convenience (loopback only): reload the pure modules and re-bind, so a
         code change does not require restarting Live. The surface class itself is not reloaded."""
         import importlib
-        from . import clipsync, bridge, clipbinding
+        from . import clipsync, bridge, clipbinding, render
         spec = [{"clip": b.clip_id, "track_name": b.track_name, "slot": b.slot, "owned": b.owned}
                 for b in self._bindings.values()]
         try:
-            for mod in (clipsync, bridge, clipbinding):
+            for mod in (clipsync, bridge, clipbinding, render):
                 importlib.reload(mod)
-            global ClipBinding
+            global ClipBinding, rendermod
             ClipBinding = clipbinding.ClipBinding
+            rendermod = render
             self.log("code reloaded")
         except Exception:  # noqa
             self.log("reload failed: %s" % traceback.format_exc())
@@ -202,6 +297,7 @@ class Anthem(ControlSurface):
                 b.resolve(self._song)
             except Exception:  # noqa
                 self.log("resolve failed: %s" % traceback.format_exc())
+        self._watch_devices()
 
 
 def create_instance(c_instance):

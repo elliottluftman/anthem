@@ -9,7 +9,9 @@
 """
 import argparse
 import asyncio
+import base64
 import errno
+import hashlib
 import hmac
 import json
 import logging
@@ -27,7 +29,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 from anthem_core import protocol  # noqa: E402
-from companion import core  # noqa: E402
+from companion import audio, core  # noqa: E402
 
 ANTHEM_DIR = Path(os.environ.get("ANTHEM_HOME", str(Path.home() / ".anthem")))
 SESSIONS_DIR = ANTHEM_DIR / "sessions"
@@ -35,6 +37,10 @@ LOG_PATH = ANTHEM_DIR / "anthem.log"
 DEFAULT_SCRIPT_PORT = 9800
 BACKOFF_MIN, BACKOFF_MAX = 1.0, 30.0
 SCRIPT_HELLO_TIMEOUT = 10.0     # a script connection must authenticate within this time
+RENDERS_DIR = ANTHEM_DIR / "renders"
+CHUNK_TIMEOUT = 30.0            # one blob chunk must be acked / delivered within this
+CHUNK_PACE = 0.06               # seconds between chunks: stays well under the relay's rate limit
+CONVERT_RETRIES, CONVERT_RETRY_DELAY = 6, 1.0   # Live may still be writing the recording
 
 # Relay `error` reasons after which reconnecting can never succeed (user must create/join again).
 PERMANENT_ERRORS = ("unknown session", "unknown participant", "bad secret", "session too large",
@@ -211,6 +217,137 @@ class Link(object):
             pass
 
 
+class Transfer(object):
+    """Render file uploads/downloads over the relay link, one chunk at a time, paced and acked.
+    Runs as asyncio tasks owned by the SessionRunner; results go back through comp.on_transfer."""
+
+    def __init__(self, runner):
+        self.r = runner
+        self.waiting = {}      # (kind, blob, idx) -> Future
+        self.tasks = set()
+
+    def _spawn(self, coro):
+        t = asyncio.ensure_future(coro)
+        self.tasks.add(t)
+        t.add_done_callback(self.tasks.discard)
+        return t
+
+    def cancel_all(self, why="link closed"):
+        for fut in list(self.waiting.values()):
+            if not fut.done():
+                fut.set_exception(ConnectionError(why))
+        self.waiting.clear()
+        for t in list(self.tasks):
+            t.cancel()
+
+    def on_relay(self, msg):
+        """blob_ack / blob_chunk from the relay: wake the waiting coroutine."""
+        kind = "put" if msg.get("type") == "blob_ack" else "get"
+        fut = self.waiting.pop((kind, msg.get("blob"), msg.get("idx")), None)
+        if fut is not None and not fut.done():
+            fut.set_result(msg)
+
+    def on_relay_lost(self):
+        self.cancel_all("relay disconnected")
+
+    def _dir(self):
+        d = RENDERS_DIR / (self.r.comp.session or "unknown")
+        d.mkdir(parents=True, exist_ok=True)
+        try:
+            os.chmod(d, 0o700)
+        except OSError:
+            pass
+        return d
+
+    async def _exchange(self, kind, blob, idx, msg):
+        if self.r.relay is None or not self.r.relay.send(msg):
+            raise ConnectionError("relay offline")
+        fut = asyncio.get_event_loop().create_future()
+        self.waiting[(kind, blob, idx)] = fut
+        try:
+            return await asyncio.wait_for(fut, CHUNK_TIMEOUT)
+        except asyncio.TimeoutError:
+            self.waiting.pop((kind, blob, idx), None)
+            raise ConnectionError("no answer for chunk %d of %s" % (idx, blob))
+
+    def _done(self, ev):
+        self.r._handle(self.r.comp.on_transfer, ev)
+
+    # --- upload ---
+    def start_upload(self, d):
+        self._spawn(self._upload(d))
+
+    async def _upload(self, d):
+        clip, rid, src, beats = d["clip"], d["render_id"], d.get("path"), d.get("beats")
+        ev = {"kind": "upload", "clip": clip, "render_id": rid, "beats": beats}
+        try:
+            dst = str(self._dir() / ("%s.wav" % rid))
+            if d.get("converted") and src and os.path.isfile(src):
+                dst = src
+                rate, ch, bits, _ = await asyncio.get_event_loop().run_in_executor(None, audio.read_pcm, dst)
+                meta = audio.describe(dst, rate, ch, bits)
+            else:
+                meta = None
+                for attempt in range(CONVERT_RETRIES):
+                    try:
+                        meta = await asyncio.get_event_loop().run_in_executor(None, audio.to_wav, src, dst)
+                        break
+                    except (audio.AudioError, OSError) as e:
+                        err = e
+                        await asyncio.sleep(CONVERT_RETRY_DELAY)
+                if meta is None:
+                    raise audio.AudioError("cannot read Live's recording %s: %s" % (src, err))
+            n = meta["n_chunks"]
+            for idx in range(n):
+                raw = audio.read_chunk(dst, idx)
+                ack = await self._exchange("put", rid, idx, {
+                    "type": "blob_put", "blob": rid, "idx": idx, "n": n, "size": meta["size"],
+                    "data": base64.b64encode(raw).decode("ascii")})
+                if not ack.get("ok"):
+                    raise ConnectionError("relay refused chunk %d: %s" % (idx, ack.get("error")))
+                await asyncio.sleep(CHUNK_PACE)
+            self._done(dict(ev, ok=True, path=dst, meta=meta))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa - reported to the user, never fatal
+            log.warning("upload of %s failed: %s", rid, e)
+            self._done(dict(ev, ok=False, error=str(e)))
+
+    # --- download ---
+    def start_download(self, d):
+        self._spawn(self._download(d))
+
+    async def _download(self, d):
+        clip, rid, meta = d["clip"], d["render_id"], d["meta"]
+        ev = {"kind": "download", "clip": clip, "render_id": rid}
+        try:
+            dst = self._dir() / ("%s.wav" % rid)
+            if dst.is_file() and audio.sha256_file(str(dst)) == meta["sha256"]:
+                self._done(dict(ev, ok=True, path=str(dst)))
+                return
+            tmp = str(dst) + ".part"
+            h = hashlib.sha256()
+            with open(tmp, "wb") as f:
+                for idx in range(meta["n_chunks"]):
+                    m = await self._exchange("get", rid, idx, {"type": "blob_get", "blob": rid, "idx": idx})
+                    if not m.get("ok"):
+                        raise ConnectionError("relay has no chunk %d: %s" % (idx, m.get("error")))
+                    raw = base64.b64decode(m.get("data") or "", validate=True)
+                    f.write(raw)
+                    h.update(raw)
+                    await asyncio.sleep(CHUNK_PACE)
+            if h.hexdigest() != meta["sha256"] or os.path.getsize(tmp) != meta["size"]:
+                os.unlink(tmp)
+                raise ValueError("render file corrupt (hash mismatch)")
+            os.replace(tmp, str(dst))
+            self._done(dict(ev, ok=True, path=str(dst)))
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:  # noqa
+            log.warning("download of %s failed: %s", rid, e)
+            self._done(dict(ev, ok=False, error=str(e)))
+
+
 class SessionRunner(object):
     """Drives one Companion: relay client with backoff, loopback server for the Remote Script,
     stdin commands, periodic ticks, debounced identity persistence."""
@@ -233,6 +370,7 @@ class SessionRunner(object):
         self._persist_pending = None
         self._persist_last = 0.0
         self._tasks = []
+        self.transfer = Transfer(self)
 
     # --- actions ---
     def _handle(self, fn, msg):
@@ -259,6 +397,10 @@ class SessionRunner(object):
             elif kind == "script":
                 if self.script is None or not self.script.send(act[1]):
                     log.info("script offline; dropped %s", act[1].get("type"))
+            elif kind == "upload":
+                self.transfer.start_upload(act[1])
+            elif kind == "download":
+                self.transfer.start_download(act[1])
             elif kind == "print":
                 self.out(act[1])
             elif kind == "persist":
@@ -325,6 +467,9 @@ class SessionRunner(object):
                     self.out("relay: no data for %.0fs - closing the link to reconnect" % (3 * core.PING_INTERVAL))
                     log.warning("relay read timed out; closing")
                     break
+                if msg.get("type") in ("blob_ack", "blob_chunk"):
+                    self.transfer.on_relay(msg)
+                    continue
                 self._handle(self.comp.on_relay, msg)
                 if msg.get("type") == "welcome":
                     backoff = BACKOFF_MIN      # a real session: reset the backoff
@@ -338,6 +483,7 @@ class SessionRunner(object):
             await self.relay.close()
             self.relay = None
             log.info("relay disconnected")
+            self.transfer.on_relay_lost()
             self.dispatch(self.comp.on_relay_disconnected())
             if fatal:
                 self.stopped.set()     # after the link is closed: run()'s shutdown must not race us
@@ -448,6 +594,7 @@ class SessionRunner(object):
         try:
             await self.stopped.wait()
         finally:
+            self.transfer.cancel_all("shutting down")
             for t in self._tasks:
                 t.cancel()
             await asyncio.gather(*self._tasks, return_exceptions=True)

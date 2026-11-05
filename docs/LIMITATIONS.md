@@ -26,13 +26,32 @@ deviation, release velocity) of **fixed Session View clips**: `Anthem Drums` slo
   arrangement clips, audio, samples, warping, comping, MPE/expression beyond the
   per-note fields above, tempo/time signature, playback/transport.
 
-  Third-party plug-ins specifically: what the API can and cannot reach, and the two
-  workarounds (save-and-ship state, hear-only renders) are researched in
-  `PLUGIN_RESEARCH.md`; none of it is implemented.
+  Third-party plug-ins: their *internal state* is not synchronized (research and the
+  save-and-ship design in `PLUGIN_RESEARCH.md`; blocked on reloading plug-in presets through
+  the API). Their *sound* can be shared as a **render** — see below.
 
 Unsupported data is **preserved**: edits are id-based (`apply_note_modifications`),
 so note expression attached to a note survives remote modifications; the receiver
 never clears and recreates a whole clip unless the content actually differs.
+
+## Renders (plug-in on one side only)
+
+* Explicit: the owner types `render <clip>`; nothing is rendered automatically. A render is
+  one loop of the clip's track output (Post FX), recorded in real time through Live's session
+  recording — the owner's transport runs for one loop and the loop is audible on their machine.
+  While it records, every other armed track is un-armed and re-armed afterwards.
+* The receiver gets a listen-only audio track `"<track> (render)"` with a looping clip; its
+  content is replaced by the next render; edits to it are never sent anywhere; nothing in it is
+  merged back. The receiver still cannot edit the plug-in — that is the point.
+* Live must record WAV or AIFF (FLAC is not read). Shipped as 16- or 24-bit PCM WAV, max
+  32 MiB per render; 128 MiB of renders per session are kept in relay memory, oldest complete
+  files evicted first; a relay restart loses the files and the owner's companion re-uploads
+  from its local copy (`~/.anthem/renders/<session>/`).
+* Tempo and clip length are the owner's: the receiver hears the loop at the owner's tempo,
+  warped by Live's default clip warping. Sends/returns of the track and master effects are not
+  part of the render. Return/master plug-ins cannot be rendered this way.
+* Renders are verified inside one real Live (capture and placement) and end to end between two
+  simulated clients; not yet between two real Lives.
 
 ## Workflow restrictions
 

@@ -49,6 +49,8 @@ Three design rules drive everything:
 | `remote_script/Anthem/clipbinding.py` | one collaboration clip ↔ one Live clip; owner diffing, receiver apply, conflict detection | ~330 |
 | `remote_script/Anthem/bridge.py` | non-blocking NDJSON loopback client with reconnect, bounded outbox | ~170 |
 | `remote_script/Anthem/clipsync.py` | pure diff/compare helpers + id map | ~90 |
+| `remote_script/Anthem/render.py` | renders: API capture of one loop (`RenderCapture`, tick-driven), placement (`apply_render`), plug-in inventory helpers | ~250 |
+| `companion/audio.py` | AIFF/AIFC/WAV reader → PCM WAV writer, chunking, hashes (stdlib) | ~190 |
 | `anthem_core/protocol.py` | message types, strict validation, size limits | ~180 |
 | `anthem_core/session.py` | relay-side session: participants, roles, ownership, seq/rev, bounded log, persistence | ~210 |
 | `relay/relay.py` | asyncio server around `Session` (TLS, limits, rate limit, persistence) | ~460 |
@@ -76,6 +78,25 @@ Next step for arbitrary projects: store a collaboration id on the Live object it
 Candidates: encode it in the clip name suffix (visible, survives save/load, user can
 break it) or in a hidden clip annotation; `Clip`/`Track` have no custom-metadata API.
 Project reconstruction (devices, presets, samples) is a separate problem from edit sync.
+
+## 3b. Renders (added 2026-11-04)
+
+Problem: one participant uses a plug-in the other does not own; the other hears nothing.
+Design: the owner records one loop of the track through Live's own session recording (bus
+audio track → `input_routing_type` = the track, Post FX → `arm` → `session_record` →
+`fire(record_length)`), the companion converts the file to PCM WAV and uploads it in acked,
+paced 160 KiB chunks; a `render` op (metadata + sha256) is accepted only when the relay holds
+the complete blob; the receiver downloads chunk by chunk, verifies, and the script places the
+file with `ClipSlot.create_audio_clip` in a listen-only `"<track> (render)"` track. Files are
+relay memory only (bounded) and re-uploaded by the owner after a relay restart (the welcome's
+`renders.available` flag drives that). Plug-in detection: the script reports `PluginDevice` /
+`AuPluginDevice` names per bound track and Live's browser plug-in list; companions exchange
+them through the relay's `info` passthrough and print per-clip hints.
+Limits and rationale: real-time capture (no offline render API exists in Live), explicit command
+(the transport runs), WAV/AIFF only (stdlib reader), one owner-triggered render at a time.
+Verified in one real Live by probe (capture + placement with Serum 2) and end to end with two
+simulated clients; the full chain with a real Live still needs a Live restart to load the new
+surface code.
 
 ## 4. Conflicts, ownership, recovery
 
@@ -143,7 +164,9 @@ every message/log/queue by bytes as well as by count.
 
 ## 8. Suggested next steps
 
-1. Run `docs/TEST_CHECKLIST.md` on two machines; record latencies.
+1. Run `docs/TEST_CHECKLIST.md` on two machines (steps 15–20 cover renders); record latencies.
+1b. Restart Live here, then run the companion-driven render against a real Live (host) with a
+   simulated guest; try Live set to 16-bit and 32-bit recording.
 2. Add velocity/expression human tests.
 3. Replace the fixed template with ids stored on the clip and a "share this clip" picker.
 4. Measure audio-thread impact under load (Live CPU meter, dropouts) with a busy set.

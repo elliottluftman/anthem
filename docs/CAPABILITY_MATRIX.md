@@ -2,7 +2,8 @@
 
 Environment where this was measured: **Ableton Live 12.4.1 Suite, macOS 26.6.2**
 (Live auto-updated from 12.3.8 → 12.4 → 12.4.1 during the day; the script loaded on all
-three). Embedded Python 3.11.6. No Max for Live used.
+three). Embedded Python 3.11.6. No Max for Live used. The render rows (2026-11-04) were
+measured on **Live 12.4.3** with Serum 2 installed (`probe/plugin_probe/reports/…report11.txt`).
 
 Legend — verification levels, strictly as defined in the brief:
 * **mock** = passes against `tests/mock_live.py` (not Ableton)
@@ -27,6 +28,9 @@ Legend — verification levels, strictly as defined in the brief:
 | Rename track | yes (`track.name`) | yes — `name` listener re-resolves; rename away = `clip_lost`, back = `clip_found` | not synchronized (template names are the binding key) | mock |
 | Create MIDI track | yes (`song.tracks`) | yes — `tracks` listener re-resolves bindings | yes (`song.create_midi_track(-1)` + `name`) used by `setup` | Live/API (create), mock (listener) |
 | Move arrangement clip | readable (`track.arrangement_clips`) | not implemented | not implemented | — (out of scope) |
+| Plug-ins on a track / installed plug-ins | yes (`device.class_name` = `PluginDevice`/`AuPluginDevice`, `class_display_name`; `browser.plugins` tree) | yes — `devices` listener re-sends the inventory | n/a | Live/API (Serum 2 listed on the track and in the installed list) |
+| Render one loop of a track's audio (owner) | n/a | n/a | yes — bus audio track, `input_routing_type` = track (Post FX), `arm`, `session_record`, `fire(record_length=beats)`; 8 beats captured in 5.6 s, real audio (peak −7 dBFS), bus deleted, transport restored | Live/API (`render.RenderCapture`, the module the script ships) |
+| Place a shipped audio file in a Session slot (receiver) | yes | n/a | yes — `clip_slot.create_audio_clip(path)` → 8.000-beat looping clip in `Anthem Drums (render)` | Live/API (`render.apply_render`) |
 
 ## Other verified facts (Live/API unless noted)
 
@@ -60,6 +64,17 @@ Re-run with the final build (`tools/demo_one_live_final.txt`): Live's bass clip 
 notes from an earlier test, so the companion raised a CONFLICT instead of overwriting them;
 after `revert bass` the guest's six notes and a velocity change were applied in Live
 (8 applies, median 1.2 ms, p95 5.7 ms).
+
+## Renders — what the one-Live run proved and did not (2026-11-04)
+
+`render.RenderCapture` and `render.apply_render` ran inside Live 12.4.3 with Serum 2 on a
+disposable `Anthem Drums` track driven by a probe (not by the companion): capture 8 beats →
+24-bit WAV 1.15 MB → placed back as a looping Session clip. The complete chain companion ↔
+relay ↔ companion (chunked upload/download, re-upload after a relay restart) is proven with
+two simulated clients (`tests/test_render_e2e.py`); the surface wiring (`render_capture` /
+`apply_render` handlers) with the headless surface. Not yet observed: the whole chain with
+a real Live on either end (needs a Live restart to load the new surface code), two real Lives,
+Live set to record FLAC (unsupported: WAV/AIFF only), bit-depth settings other than 24-bit.
 
 ## Not verified yet
 

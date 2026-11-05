@@ -33,7 +33,7 @@ relay (asyncio: auth, ownership, ordering, bounded op log, optional JSON persist
 | `join` | c→r | `code, participant, secret` | Registers the `guest`. Fails if the session already has a guest. |
 | `hello` | c→r | `session, participant, secret, last_seq` | Resume. |
 | `welcome` | r→c | `session, code, participant, role, seq, snapshot, ops, resync` | `snapshot = {clips, revs, notes:{clip:[note]}}`. `ops` = ops after `last_seq`, or `null` with `resync:true` when they fell out of the bounded log (use the snapshot). |
-| `op` | c→r | `op_id, clip, kind, base_rev, payload` | `kind` ∈ `delta`, `snapshot`. See payloads below. |
+| `op` | c→r | `op_id, clip, kind, base_rev, payload` | `kind` ∈ `delta`, `snapshot`, `render`. See payloads below. |
 | `op_ack` | r→c | `op_id, seq, rev, duplicate` | Duplicate `op_id` returns the original seq/rev and is not re-applied/re-broadcast. |
 | `op` | r→c | `seq, rev, participant, op_id, clip, kind, payload` | Broadcast to the *other* participants in `seq` order. |
 | `reject` | r→c | `op_id, reason` | e.g. `not owner`, `stale base_rev` (owner must resend a `snapshot` op). |
@@ -42,6 +42,12 @@ relay (asyncio: auth, ownership, ordering, bounded op log, optional JSON persist
 | `presence` | r→c | `participants:[{id, role, online}]` | Broadcast on connect/disconnect. |
 | `error` | r→c | `reason` | Followed by connection close for auth failures. |
 | `ping`/`pong` | both | | Keep-alive; relay drops idle connections after 90 s. |
+| `info` | c→r | `plugins:[name], tracks:{clip:[plugin name]}` | What this participant's Live has installed (browser plug-in names) and which plug-ins sit on the tracks of the clips it owns. Not logged; the relay keeps the latest per participant. |
+| `info` | r→c | `participant, plugins, tracks` | Relayed to the other participant immediately, and to a participant that connects later. |
+| `blob_put` | c→r | `blob, idx, n, size, data` | One base64 chunk (`BLOB_CHUNK_BYTES` = 160 KiB raw) of a render file; only clip owners may upload. |
+| `blob_ack` | r→c | `blob, idx, ok, error?, complete` | Per chunk; `complete` once all `n` chunks are there (the relay then knows the blob's sha256). |
+| `blob_get` | c→r | `blob, idx` | Fetch one chunk; the receiver paces itself (one request per answer). |
+| `blob_chunk` | r→c | `blob, idx, n, size, data, ok` or `blob, ok:false, error` | |
 
 ### Note (wire form)
 
@@ -56,6 +62,13 @@ mapping owner-id → local Live note_id (see `remote_script/Anthem/clipsync.py`)
 * `snapshot`: `{notes:[note]}` — authoritative full content of the clip. Idempotent.
 * `delta`: `{added:[note], modified:[note], removed:[int]}` — must be non-empty and
   carry `base_rev` equal to the clip's current revision at the relay.
+* `render`: `{render_id, beats, sample_rate, channels, bits, size, sha256, n_chunks}` — metadata of
+  one loop of the clip's track audio, uploaded beforehand as blob `render_id`. The relay rejects
+  the op unless the blob is complete and matches `size`/`sha256`. Notes are untouched; the clip's
+  previous render is replaced; `rev` increments like any op. The welcome `snapshot` carries
+  `renders:{clip: payload + available:bool}` (`available` = the relay still holds the file; files
+  live in relay memory only, bounded to 32 MiB each / 128 MiB per session, oldest complete blobs
+  evicted first, and are re-uploaded by their owner after a relay restart).
 
 Ordering: relay-assigned `seq` (session-wide) and `rev` (per clip). No wall clocks.
 
@@ -66,7 +79,7 @@ Ordering: relay-assigned `seq` (session-wide) and `rev` (per clip). No wall cloc
 | `script_hello` | s→c | `live_version, set_name, set_path, script_version, token` — sent on connect and whenever Live re-instantiates the script (which happens when a different Set is opened). `token` is read from `~/.anthem/script.token` (written 0600 by the companion at start); the companion ignores every other message from a connection whose token does not match, and does not displace an authenticated Live connection for an unauthenticated one. An empty `set_path` (unsaved set) is treated as *unknown project*: the companion warns that the different-project guard is inactive, and a later `script_hello` with an empty path while bound is treated as a mismatch (requires `rebind`). |
 | `bind` | c→s | `clips:[{clip, track_name, slot, owned}]` |
 | `set_owned` | c→s | `clip, owned` — ownership changed at runtime (after `claim`/`release`/reconnect). The script resets that binding's state; newly owned → it sends a `local_snapshot`; no longer owned → it waits for `apply_snapshot`. |
-| `inventory` | s→c | `clips:[{clip, found, track_name, slot, owned, note_count}]`, `tracks:[names]` |
+| `inventory` | s→c | `clips:[{clip, found, track_name, slot, owned, note_count, devices:[{name, cls, plugin}]}]`, `tracks:[names]`, `plugins:[installed plug-in names from Live's browser]` — re-sent when a bound track's device list changes. |
 | `local_snapshot` | s→c | `clip, notes, owned` — after bind for every found clip and on `request_snapshot`. For owned clips it is authoritative (companion → relay `snapshot` op). For non-owned clips it is informational: the companion compares it with the replica and, if the local clip has notes that differ, enters the CONFLICT state instead of overwriting them with the init snapshot. |
 | `local_delta` | s→c | `clip, added, modified, removed, t_detect` — one per notes-listener firing on an owned clip. |
 | `apply_snapshot` | c→s | `clip, op_id, notes, force?` — `force:true` is sent only for the explicit `revert`/`resync` commands and overwrites a local edit on purpose. |
@@ -76,6 +89,10 @@ Ordering: relay-assigned `seq` (session-wide) and `rev` (per clip). No wall cloc
 | `setup_template` | c→s | same `clips` as `bind` (+ optional `length`) — creates missing template MIDI tracks/clips in the **current** set, then binds. Only sent on an explicit user command (`setup`). |
 | `clip_lost` / `clip_found` | s→c | `clip, reason?` |
 | `conflict` | s→c | `clip` — the user edited a clip they do not own. |
+| `render_capture` | c→s | `clip, render_id` — owner: record one loop of the clip's track output (see Renders). Answered by `render_captured`. |
+| `render_captured` | s→c | `clip, render_id, ok, error?, path, beats, ms` — `path` is Live's own recording file (AIFF/WAV, in the project's `Samples/Recorded`). |
+| `apply_render` | c→s | `clip, render_id, path, track_name, slot, beats` — receiver: put the WAV into slot `slot` of the audio track `"<track_name> (render)"` (created at the end of the set if missing; an existing clip in that slot is replaced). |
+| `render_applied` | s→c | `clip, render_id, ok, error?, ms` |
 | `show_message` | c→s | `msg` (shown in Live's status bar) |
 | `log` | s→c | `level, msg` |
 
@@ -120,6 +137,25 @@ line limit it sends `ops: null, resync: true`; if the snapshot alone is too larg
 replies `error "session too large"` instead of closing silently. Invite codes are 12
 base32 characters, are retired once the guest has joined, and failed `join`/`hello`
 attempts are throttled per source address.
+
+## Renders (hear a plug-in the other side does not have)
+
+Both companions learn the other's installed plug-ins from the relayed `info` and print, per
+clip, which plug-in is missing where. The owner of a clip types `render <clip>`:
+
+1. Companion → script `render_capture`. The script creates a temporary audio track
+   (`Anthem Render Bus`), routes its input to the clip's track (Post FX), un-arms every other
+   armed track, arms the bus, enables session record, fires the clip and the bus slot with
+   `record_length = clip length`, and polls until Live stops recording. It then restores the
+   arm states, stops the transport if it was stopped before, deletes the bus and reports the
+   file. Real time: the loop is heard once on the owner's machine.
+2. Companion converts the recording to PCM WAV (16-bit stays 16-bit, everything else 24-bit),
+   stores it under `~/.anthem/renders/<session>/`, uploads it in acked chunks (`blob_put`), then
+   sends the `render` op.
+3. The receiver's companion fetches the chunks (`blob_get`), verifies the sha256, stores the WAV
+   and sends `apply_render`; the script places it as a looping Session clip in
+   `"<track> (render)"`. That track is not synchronized back: the receiver can listen, not edit
+   the plug-in. New renders replace the clip.
 
 ## Project change safety
 

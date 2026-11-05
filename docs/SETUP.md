@@ -65,6 +65,25 @@ python3 relay/relay.py --host 0.0.0.0 --port 9801 --state ~/.anthem/relay-state.
 Ownership in the template: host edits **Drums**, guest edits **Bass**. Editing the
 other clip raises a visible conflict (see LIMITATIONS.md → Conflicts).
 
+## 5. A plug-in only one of you has (renders)
+
+Each companion tells the other which plug-ins its Live has installed. If you put, say, Serum
+on your track and your collaborator does not have Serum, both companions print a `PLUG-IN:`
+line. The owner then types
+
+```
+render drums        (or: render bass)
+```
+
+Live plays the clip once while recording the track's output (you hear it; the transport
+runs for one loop). The companion converts the recording to WAV, uploads it, and the other
+side gets an audio track **`Anthem Drums (render)`** with a looping clip of your sound in
+slot 1. They can hear it and mix it, but not edit the plug-in. Type `render` again after
+changing the sound; the clip is replaced. Requirements: Live's recording file type set to
+**WAV or AIFF** (Settings ▸ Record Warp Launch; FLAC is not supported), a render under 32 MiB
+(a 16-beat loop at 48 kHz / 24-bit is about 2 MiB). Renders are stored under
+`~/.anthem/renders/<session>/` on both machines.
+
 ## Environment variables and extra flags
 
 `ANTHEM_HOME` (default `~/.anthem`) — where identities, the token and the log live;
@@ -75,7 +94,7 @@ one machine; the Remote Script always uses 9800).
 
 ## Companion commands while running
 
-`status` · `setup` · `revert <clip>` · `claim <clip>` · `release <clip>` · `resync` · `rebind` · `quit`
+`status` · `setup` · `render <clip>` · `revert <clip>` · `claim <clip>` · `release <clip>` · `resync` · `rebind` · `quit`
 
 Diagnostics: `~/.anthem/anthem.log` (no secrets). Session identity: `~/.anthem/sessions/`.
 

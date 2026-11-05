@@ -1,0 +1,14 @@
+Live 12.4.3 set='' file exists=True
+A create_audio_clip ok: arrangement_clips=1 clip audio=True length=5.056 file='~/Music/Ableton/User Library/Samples/Anthem Probe/probe render.aif' warping=False looping=False
+B try 1: items=[]
+B try 2: items=['probe render.aif']
+B arrangement_clips now 1
+C input=2-909 Core Kit/Post FX
+C other armed tracks: []
+C +0.4s: playing=True is_recording=True has_clip=True tempo=120.0
+C +0.9s: playing=True is_recording=True has_clip=True tempo=120.0
+C +1.4s: playing=True is_recording=True has_clip=True tempo=120.0
+C +1.9s: playing=True is_recording=True has_clip=True tempo=120.0
+C +2.4s: playing=True is_recording=False has_clip=True tempo=120.0
+C recorded: audio=True length=4.000 beats loop=True playing=True file='~/Music/Ableton/Live Recordings/2026-11-04 210937 Temp Project/Samples/Recorded/Anthem Probe Bus 0001 [2026-11-04 213809].aif' exists=True
+cleanup done; tracks=4

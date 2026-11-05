@@ -7,6 +7,8 @@ Every ``on_*`` method takes an inbound message/event and returns a list of actio
     ("print", text)     show text to the user
     ("persist", dict)   identity fields changed (session, code, role, set_path, last_seq)
     ("relay_drop", why) the relay link looks dead: the glue closes it so the reconnect path runs
+    ("upload", d)       convert + upload a render file (glue), then call on_transfer(...)
+    ("download", d)     fetch a render file from the relay (glue), then call on_transfer(...)
     ("quit",)           user asked to exit
 
 Clip replica semantics mirror ``anthem_core.session.Session.apply_op``: a snapshot
@@ -55,7 +57,8 @@ def note_content(notes):
 class Clip(object):
     __slots__ = ("clip", "name", "track_name", "slot", "owner", "owned", "found", "rev",
                  "notes", "conflict", "paused", "pause_reason", "dirty", "note_count",
-                 "awaiting_baseline", "expected_local", "unsent_conflict", "revert_pending")
+                 "awaiting_baseline", "expected_local", "unsent_conflict", "revert_pending",
+                 "devices", "render", "render_state", "render_path", "render_apply_pending")
 
     def __init__(self, clip, name, track_name, slot, owner):
         self.clip = clip
@@ -78,6 +81,12 @@ class Clip(object):
         self.expected_local = None    # note_content the local clip is known to hold (may lag the replica)
         self.unsent_conflict = False  # conflict raised for unsent edits: an empty baseline is still an edit
         self.revert_pending = False   # revert/resync typed while the clip was unavailable
+        # Renders (audio of this clip's track for a participant lacking a plug-in)
+        self.devices = []             # plug-in names on this clip's track in OUR Live (from inventory)
+        self.render = None            # latest render metadata known from the relay (validate_render)
+        self.render_state = "none"    # none | capturing | uploading | shared | downloading | applied | failed
+        self.render_path = None       # local WAV of the latest render (owner: sent; receiver: fetched)
+        self.render_apply_pending = False   # receiver: fetched, waiting for Live to place it
 
     def pause(self, reason=None):
         self.paused = True
@@ -88,7 +97,9 @@ class Clip(object):
         self.pause_reason = None
 
     def apply(self, kind, payload):
-        if kind == "snapshot":
+        if kind == "render":
+            self.render = dict(payload)
+        elif kind == "snapshot":
             self.notes = {n["id"]: n for n in payload["notes"]}
         else:
             for n in payload.get("added", []):
@@ -137,6 +148,10 @@ class Companion(object):
         self.last_rx = None      # when the relay last sent anything (pong included)
         self._counter = 0
         self.heal_sent = {}      # clip -> op_id of the in-flight self-heal snapshot
+        self.plugins = None      # plug-ins installed in OUR Live (names), from the script's inventory
+        self.peer_plugins = None  # ...and in the peer's Live, from the relayed ``info``
+        self.peer_tracks = {}    # clip -> plug-in names on the peer's track for that clip
+        self._hints = {}         # clip -> last printed missing-plug-in hint (printed once per change)
 
     # ------------------------------------------------------------------ helpers
     def _now(self):
@@ -288,6 +303,53 @@ class Companion(object):
                                         "online" if p.get("online") else "offline") for p in parts)
         return [("print", "presence: " + who)]
 
+    def _relay_info(self, msg):
+        try:
+            info = protocol.validate_info(msg)
+        except protocol.ProtocolError as e:
+            return [("print", "relay: invalid info ignored (%s)" % e)]
+        if msg.get("participant") == self.participant:
+            return []
+        self.peer_plugins = set(info["plugins"])
+        self.peer_tracks = info["tracks"]
+        return self._plugin_hints()
+
+    def _plugin_hints(self):
+        """Tell the user which plug-ins the other side lacks (owned clips) or which ones they lack
+        themselves (peer's clips). Printed once per change."""
+        out = []
+        for c in self.clips.values():
+            if c.owned:
+                if self.peer_plugins is None:
+                    continue
+                missing = [p for p in c.devices if p not in self.peer_plugins]
+                key = ("peer", tuple(missing))
+                if missing and self._hints.get(c.clip) != key:
+                    out.append(("print", "PLUG-IN: the other participant does not have %s (on %s). They hear "
+                                         "nothing from it - type 'render %s' to send them the audio of one loop."
+                                         % (", ".join(missing), c.track_name, c.clip)))
+            else:
+                if self.plugins is None:
+                    continue
+                missing = [p for p in self.peer_tracks.get(c.clip, []) if p not in self.plugins]
+                key = ("me", tuple(missing))
+                if missing and self._hints.get(c.clip) != key:
+                    out.append(("print", "PLUG-IN: %s uses %s, which is not installed here. You will hear it "
+                                         "once the owner types 'render %s' (the audio arrives as a locked "
+                                         "'%s (render)' track; you cannot edit that plug-in)."
+                                         % (c.clip, ", ".join(missing), c.clip, c.track_name)))
+            if missing:
+                self._hints[c.clip] = key
+            else:
+                self._hints.pop(c.clip, None)
+        return out
+
+    def _send_info(self):
+        if self.plugins is None or not (self.relay_connected and self.welcomed):
+            return []
+        return [("relay", {"type": "info", "plugins": sorted(self.plugins),
+                           "tracks": {c.clip: list(c.devices) for c in self.clips.values() if c.owned}})]
+
     def _relay_welcome(self, msg):
         snap = msg.get("snapshot") or {}
         if not isinstance(snap, dict) or not isinstance(snap.get("clips"), list):
@@ -370,8 +432,53 @@ class Companion(object):
                     out.append(self._apply_snapshot_msg(cs, "resync"))
         elif not reconnect:
             out.append(("print", "session %s  role=%s  invite code: %s" % (self.session, self.role, self.code)))
+        out.extend(self._welcome_renders(snap.get("renders")))
+        out.extend(self._send_info())
         out.extend(self._maybe_bind())
         return out
+
+    def _welcome_renders(self, renders):
+        """Renders the relay knows about: fetch new ones we lack; re-upload ours if the relay lost
+        the file (it keeps render files in memory only)."""
+        out = []
+        if not isinstance(renders, dict):
+            return out
+        for cid, r in renders.items():
+            c = self.clips.get(cid)
+            if c is None or not isinstance(r, dict):
+                continue
+            try:
+                meta = protocol.validate_render(r)
+            except protocol.ProtocolError:
+                continue
+            available = bool(r.get("available"))
+            if c.owned:
+                mine = c.render or {}
+                if not available and c.render_path and mine.get("render_id") == meta["render_id"]:
+                    c.render_state = "uploading"
+                    out.append(("print", "relay no longer holds the render of %s - re-uploading" % cid))
+                    out.append(("upload", {"clip": cid, "render_id": meta["render_id"], "path": c.render_path,
+                                           "beats": meta["beats"], "converted": True}))
+                else:
+                    c.render = meta
+                continue
+            if (c.render or {}).get("render_id") == meta["render_id"] and c.render_path:
+                c.render = meta
+                continue
+            c.render = meta
+            if available:
+                out.extend(self._start_download(c))
+            else:
+                out.append(("print", "a render of %s exists but the relay lost its file; the owner's "
+                                     "companion re-sends it when it reconnects" % cid))
+        return out
+
+    def _start_download(self, c):
+        r = c.render
+        c.render_state = "downloading"
+        c.render_apply_pending = False
+        return [("print", "render of %s (%s, %d KiB) - downloading" % (c.clip, r["render_id"][:8], r["size"] // 1024)),
+                ("download", {"clip": c.clip, "render_id": r["render_id"], "meta": dict(r)})]
 
     def _relay_op_ack(self, msg):
         op_id = msg.get("op_id")
@@ -452,6 +559,10 @@ class Companion(object):
             while len(self.seen_ops) > MAX_SEEN_OPS:
                 self.seen_ops.popitem(last=False)
         out = self._bump_seq(seq)
+        if kind == "render":
+            if not c.owned and forward:
+                out.extend(self._start_download(c))
+            return out
         if forward and self._can_forward(c):
             fwd = {"type": "apply_" + kind, "clip": clip, "op_id": op_id}
             fwd.update(payload)
@@ -554,9 +665,16 @@ class Companion(object):
             if c.found and not was:
                 c.awaiting_baseline = True    # the script's baseline local_snapshot follows
             c.note_count = e.get("note_count")
+            devs = e.get("devices")
+            if isinstance(devs, list):
+                c.devices = [str(d.get("name"))[:protocol.MAX_NAME_LEN] for d in devs
+                             if isinstance(d, dict) and d.get("plugin") and d.get("name")][:64]
         for c in self.clips.values():
             if c.clip not in seen:
                 c.found = False
+        plugins = msg.get("plugins")
+        if isinstance(plugins, list):
+            self.plugins = {str(x)[:protocol.MAX_NAME_LEN] for x in plugins if isinstance(x, str)}
         rows = ["Supported parts:",
                 "  %-8s %-16s %-4s %-6s %-6s %s" % ("clip", "track", "slot", "found", "owned", "notes")]
         for c in self.clips.values():
@@ -570,12 +688,94 @@ class Companion(object):
             if c.found and c.owned and c.dirty:
                 c.dirty = False
                 out.append(("script", {"type": "request_snapshot", "clip": c.clip}))
+        out.extend(self._send_info())
+        out.extend(self._plugin_hints())
+        for c in self.clips.values():
+            if not c.owned and c.render_apply_pending and c.render_path:
+                out.extend(self._apply_render_msg(c))
         return out
+
+    # ----------------------------------------------------------------- renders
+    def _apply_render_msg(self, c):
+        if not (self.script_connected and self.bound) or not c.render or not c.render_path:
+            c.render_apply_pending = True
+            return []
+        c.render_apply_pending = False
+        return [("script", {"type": "apply_render", "clip": c.clip, "render_id": c.render["render_id"],
+                            "path": c.render_path, "track_name": c.track_name, "slot": c.slot,
+                            "beats": c.render["beats"]})]
+
+    def _script_render_captured(self, msg):
+        c = self.clips.get(msg.get("clip"))
+        if c is None:
+            return []
+        rid = msg.get("render_id")
+        if not msg.get("ok", False):
+            c.render_state = "failed"
+            return [("print", "render of %s failed in Live: %s" % (c.clip, msg.get("error")))]
+        beats = msg.get("beats")
+        if not isinstance(beats, (int, float)) or not 0 < beats <= protocol.MAX_RENDER_BEATS:
+            c.render_state = "failed"
+            return [("print", "render of %s has an unusable length (%r beats)" % (c.clip, beats))]
+        c.render_state = "uploading"
+        return [("print", "render of %s recorded (%.0f beats, %d ms) - converting and uploading"
+                 % (c.clip, beats, msg.get("ms") or 0)),
+                ("upload", {"clip": c.clip, "render_id": rid, "path": msg.get("path"), "beats": float(beats),
+                            "converted": False})]
+
+    def on_transfer(self, ev):
+        """Glue callback when an upload/download finished: {kind, clip, render_id, ok, error?, path?, meta?}."""
+        c = self.clips.get(ev.get("clip"))
+        if c is None:
+            return []
+        rid = ev.get("render_id")
+        if ev.get("kind") == "upload":
+            if not ev.get("ok"):
+                c.render_state = "failed"
+                return [("print", "render of %s could not be uploaded: %s" % (c.clip, ev.get("error")))]
+            meta = dict(ev.get("meta") or {})
+            meta["render_id"] = rid
+            meta["beats"] = float(ev.get("beats") or meta.get("beats") or 0)
+            try:
+                payload = protocol.validate_render(meta)
+            except protocol.ProtocolError as e:
+                c.render_state = "failed"
+                return [("print", "render of %s has invalid metadata: %s" % (c.clip, e))]
+            c.render_path = ev.get("path")
+            c.render_state = "shared"
+            out = self._local_op(c, "render", payload)
+            if out:
+                out.insert(0, ("print", "render of %s shared (%d KiB); the other side places it in '%s (render)'"
+                               % (c.clip, payload["size"] // 1024, c.track_name)))
+            else:
+                out = [("print", "render of %s is ready; it is sent when the relay is back" % c.clip)]
+            return out
+        # download
+        if not ev.get("ok"):
+            c.render_state = "failed"
+            return [("print", "render of %s could not be fetched: %s" % (c.clip, ev.get("error")))]
+        if not c.render or c.render.get("render_id") != rid:
+            return []     # superseded meanwhile
+        c.render_path = ev.get("path")
+        c.render_state = "downloaded"
+        return self._apply_render_msg(c)
+
+    def _script_render_applied(self, msg):
+        c = self.clips.get(msg.get("clip"))
+        if c is None:
+            return []
+        if msg.get("ok", False):
+            c.render_state = "applied"
+            return [("print", "render of %s placed in Live ('%s (render)', %d ms)"
+                     % (c.clip, c.track_name, msg.get("ms") or 0))]
+        c.render_state = "failed"
+        return [("print", "Live could not place the render of %s: %s" % (c.clip, msg.get("error")))]
 
     def _local_op(self, c, kind, payload):
         """Owned clip changed locally: send an op now, or coalesce until the relay is back."""
         if not (self.relay_connected and self.welcomed):
-            c.dirty = True
+            if kind != "render":        # a render is re-offered from the welcome's renders table
+                c.dirty = True
             return []
         op = {"type": "op", "op_id": uuid.uuid4().hex, "clip": c.clip, "kind": kind,
               "base_rev": c.rev, "payload": payload}
@@ -740,7 +940,22 @@ class Companion(object):
         if cmd == "status":
             return [("print", self.status_text())]
         if cmd == "help":
-            return [("print", "commands: status | revert <clip> | claim <clip> | release <clip> | rebind | setup | resync | quit")]
+            return [("print", "commands: status | render <clip> | revert <clip> | claim <clip> | release <clip> | rebind | setup | resync | quit")]
+        if cmd == "render":
+            if not args or args[0] not in self.clips:
+                return [("print", "usage: render <clip>   (clips: %s)" % (", ".join(self.clips) or "none yet"))]
+            c = self.clips[args[0]]
+            if not c.owned:
+                return [("print", "%s is owned by the other participant; only the owner can render it" % c.clip)]
+            if not (self.script_connected and self.bound and c.found):
+                return [("print", "render needs Live connected with %s found" % c.clip)]
+            if any(cl.render_state in ("capturing", "uploading") for cl in self.clips.values()):
+                return [("print", "a render is already in progress")]
+            rid = uuid.uuid4().hex[:16]
+            c.render_state = "capturing"
+            return [("print", "render %s: Live plays one loop of '%s' and records it (the transport runs)"
+                     % (c.clip, c.track_name)),
+                    ("script", {"type": "render_capture", "clip": c.clip, "render_id": rid})]
         if cmd == "setup":
             # Create the missing template tracks/clips in the CURRENT set (script binds afterwards).
             if not (self.welcomed and self.script_connected and self.script_hello is not None):
@@ -777,6 +992,12 @@ class Companion(object):
                 return [("print", "no Live Set connected yet")]
             self.set_path = self._hello_path()
             self.bind_blocked = False
+            if self.bound:                 # explicit re-bind: fresh inventory (tracks, devices, plug-ins)
+                self.bound = False
+                for c in self.clips.values():
+                    c.found = False
+                    if not c.owned:
+                        self._remember_local(c)
             out = [self._persist(), ("print", "rebind: session now attached to %s" % (self.set_path or "(unsaved set)"))]
             return out + self._maybe_bind()
         if cmd == "resync":
@@ -839,6 +1060,17 @@ class Companion(object):
             state = "CONFLICT" if c.conflict else (paused if c.paused else ("dirty" if c.dirty else "ok"))
             owner = "you" if c.owned else ("peer" if c.owner and c.owner not in ("host", "guest") else (c.owner or "none"))
             lines.append("  %-8s %-6s %-6s %-5d %-9s %d" % (c.clip, owner, "yes" if c.found else "no", c.rev, state, len(c.notes)))
+        rl = []
+        for c in self.clips.values():
+            if c.render or c.render_state != "none" or c.devices:
+                rl.append("  %-8s plug-ins=%s render=%s %s" % (
+                    c.clip, ",".join(c.devices) or "-",
+                    c.render["render_id"][:8] if c.render else "-", c.render_state))
+        if rl:
+            lines.append("renders (plug-ins here: %s; peer: %s):" % (
+                len(self.plugins) if self.plugins is not None else "?",
+                len(self.peer_plugins) if self.peer_plugins is not None else "?"))
+            lines.extend(rl)
         st = self.latency_stats()
         a, p, d = st["op_ack_s"], st["applied_ms"], st["detect_lag_s"]
         lines.append("op_ack rtt: %s" % ("n=%d median=%.0fms p95=%.0fms" % (a["n"], a["median"] * 1000, a["p95"] * 1000) if a else "no samples"))

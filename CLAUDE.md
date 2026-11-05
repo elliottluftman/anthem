@@ -19,12 +19,15 @@ Ableton ↔ Ableton MIDI clip collaboration prototype. Start with `STATUS.md`, t
   companion's (`set_owned`). Only owners send `local_delta`/`local_snapshot` as authoritative.
 - Keep all three processes stdlib-only Python. Keep `companion/core.py` pure (no I/O).
 - Bound everything by bytes as well as by count (256 KiB per line, 2000 notes per op/clip,
-  1500 per session).
+  1500 per session, 32 MiB per render / 128 MiB of renders per session in relay memory).
+- Renders record in real time through Live's session recording: never leave the bus track,
+  arm states or `session_record` changed after a capture, success or failure
+  (`render.RenderCapture._cleanup`). Only the clip owner uploads; the relay enforces it.
 
 ## Commands
 
 ```
-ANTHEM_HOME=/tmp/anthem-test python3 -m pytest tests -q        # 156 tests, ~20 s
+ANTHEM_HOME=/tmp/anthem-test python3 -m pytest tests -q        # 170 tests, ~25 s
 python3 -m compileall -q remote_script companion relay anthem_core tools
 python3 tools/live_verify.py [--reload] [--no-interactive]     # against a running Live with Anthem selected
 python3 tools/demo_one_live.py --seconds 60                    # real Live host + simulated guest
@@ -36,7 +39,7 @@ python3 tools/demo_one_live.py --seconds 60                    # real Live host 
 
 - Install: `python3 companion/anthem.py install` copies `remote_script/Anthem` to
   `~/Music/Ableton/User Library/Remote Scripts/Anthem`. Live scans that folder at startup.
-- Changes to `clipbinding.py` / `bridge.py` / `clipsync.py` can be hot-reloaded without
+- Changes to `clipbinding.py` / `bridge.py` / `clipsync.py` / `render.py` can be hot-reloaded without
   restarting Live: `python3 tools/live_verify.py --reload --no-interactive` (sends
   `reload_code`). Changes to `anthem.py` need a Live restart (re-select the control surface
   or quit/relaunch).
@@ -48,8 +51,8 @@ python3 tools/demo_one_live.py --seconds 60                    # real Live host 
 ## Layout
 
 ```
-remote_script/Anthem/   anthem.py (ControlSurface), clipbinding.py, bridge.py, clipsync.py
-companion/              anthem.py (CLI + asyncio), core.py (pure state machine)
+remote_script/Anthem/   anthem.py (ControlSurface), clipbinding.py, bridge.py, clipsync.py, render.py
+companion/              anthem.py (CLI + asyncio + render transfers), core.py (pure state machine), audio.py
 relay/relay.py          asyncio relay
 anthem_core/            protocol.py, session.py
 tests/                  pytest; live_stubs/ + mock_live.py are stubs/mocks, not Live

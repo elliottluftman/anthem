@@ -118,19 +118,57 @@ class MockClip(_Listenable):
         return sorted((n.pitch, n.start_time, n.duration, n.velocity, n.mute) for n in self._notes.values())
 
 
+class MockAudioClip(object):
+    is_midi_clip = False
+    is_audio_clip = True
+
+    def __init__(self, file_path="", length=4.0, recording=False, record_length=None):
+        self.file_path = file_path
+        self.length = length
+        self.is_recording = recording
+        self.record_length = record_length
+        self.name = "audio"
+        self.looping = False
+        self.warping = True
+
+
+class MockDevice(object):
+    def __init__(self, name, class_name="PluginDevice"):
+        self.name = name
+        self.class_display_name = name
+        self.class_name = class_name
+
+
+class MockRouting(object):
+    def __init__(self, display_name):
+        self.display_name = display_name
+
+
 class MockSlot(_Listenable):
     def __init__(self, song, track):
         _Listenable.__init__(self, song)
         self.track = track
         self.clip = None
+        self.playing = False
+        self.fired = 0
 
     @property
     def has_clip(self):
         return self.clip is not None
 
+    @property
+    def is_recording(self):
+        return self.clip is not None and bool(getattr(self.clip, "is_recording", False))
+
     def create_clip(self, length):
         assert self.clip is None and self.track.has_midi_input
         self.clip = MockClip(self._song, length)
+        self._notify("has_clip")
+        return self.clip
+
+    def create_audio_clip(self, path):
+        assert self.clip is None and self.track.has_audio_input
+        self.clip = MockAudioClip(file_path=path, length=self._song.audio_clip_length)
         self._notify("has_clip")
         return self.clip
 
@@ -139,13 +177,50 @@ class MockSlot(_Listenable):
         self.clip = None
         self._notify("has_clip")
 
+    def fire(self, record_length=None, **kw):
+        """Launch (MIDI) or start a session recording (armed audio track + session_record)."""
+        self.fired += 1
+        self._song.is_playing = True
+        if self.track.has_audio_input and self.clip is None:
+            assert self.track.arm and self._song.session_record, "recording needs arm + session_record"
+            self.clip = MockAudioClip(recording=True, record_length=record_length)
+            self._song.recordings.append(self)
+            self._notify("has_clip")
+        self.playing = True
+
+    def stop(self):
+        self.playing = False
+
 
 class MockTrack(_Listenable):
     def __init__(self, song, name, midi=True, slots=8):
         _Listenable.__init__(self, song)
         self._name = name
         self.has_midi_input = midi
+        self.has_audio_input = not midi
+        self.can_be_armed = True
+        self.arm = False
+        self.devices = []
         self.clip_slots = [MockSlot(song, self) for _ in range(slots)]
+        self._routing_ready = False      # Live fills routing lists one tick after track creation
+        self.input_routing_type = None
+        self.input_routing_channel = None
+
+    def set_devices(self, devices):
+        """Test helper: the user adds/removes devices (Live fires the track's devices listener)."""
+        self.devices = list(devices)
+        self._notify("devices")
+
+    @property
+    def available_input_routing_types(self):
+        if not self._routing_ready:
+            return []
+        return [MockRouting("Ext. In"), MockRouting("Resampling")] + \
+               [MockRouting(t.name) for t in self._song.tracks if t is not self]
+
+    @property
+    def available_input_routing_channels(self):
+        return [MockRouting(n) for n in ("Pre FX", "Post FX", "Post Mixer")]
 
     @property
     def name(self):
@@ -165,6 +240,12 @@ class MockSong(_Listenable):
         self.file_path = file_path
         self.name = "Test"
         self.undo_steps = 0
+        self.session_record = False
+        self.is_playing = False
+        self.tempo = 120.0
+        self.recordings = []             # slots currently recording (see finish_recording)
+        self.record_file = "/tmp/mock-recording.aif"
+        self.audio_clip_length = 4.0
 
     def begin_undo_step(self):
         self.undo_steps += 1
@@ -178,6 +259,31 @@ class MockSong(_Listenable):
         self._notify("tracks")
         return t
 
+    def create_audio_track(self, index=-1):
+        t = MockTrack(self, "Audio", midi=False)
+        self.tracks.append(t)
+        self._notify("tracks")
+        return t
+
+    def stop_playing(self):
+        self.is_playing = False
+        for t in self.tracks:
+            for s in t.clip_slots:
+                s.playing = False
+
+    def finish_recording(self):
+        """Test helper: the recording(s) reach their record_length (Live would do this in real time)."""
+        n = 0
+        for slot in self.recordings:
+            c = slot.clip
+            if c is not None and c.is_recording:
+                c.is_recording = False
+                c.length = float(c.record_length or self.audio_clip_length)
+                c.file_path = self.record_file
+                n += 1
+        self.recordings = []
+        return n
+
     def delete_track(self, index):
         del self.tracks[index]
         self._notify("tracks")
@@ -185,6 +291,8 @@ class MockSong(_Listenable):
     def flush(self):
         """Deliver pending listener notifications (Live does this asynchronously)."""
         n = 0
+        for t in self.tracks:
+            t._routing_ready = True
         while self.pending:
             fns, self.pending = self.pending, []
             for fn in fns:

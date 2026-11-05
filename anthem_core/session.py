@@ -44,8 +44,11 @@ def new_code():
 
 def _note_count(entry):
     p = entry["payload"]
-    return len(p["notes"]) if entry["kind"] == "snapshot" else \
-        len(p["added"]) + len(p["modified"]) + len(p["removed"])
+    if entry["kind"] == "snapshot":
+        return len(p["notes"])
+    if entry["kind"] == "delta":
+        return len(p["added"]) + len(p["modified"]) + len(p["removed"])
+    return 0   # render: metadata only
 
 
 ROLES = ("host", "guest")
@@ -64,6 +67,8 @@ class Session(object):
         self.clips = {}
         self.revs = {}
         self.state = {}
+        self.renders = {}   # clip id -> latest render metadata (protocol.validate_render), blob kept by the relay
+        self.info = {}      # participant id -> last validated ``info`` (not persisted)
         self.log = []
         self.log_notes = 0  # sum of _note_count over self.log
         self.seq = 0
@@ -156,7 +161,9 @@ class Session(object):
         p = op["payload"]
         # Build the candidate clip state first and validate it; nothing is mutated until every
         # check has passed, so a rejected op leaves the session exactly as it was.
-        if op["kind"] == "snapshot":
+        if op["kind"] == "render":
+            after = notes          # notes untouched; the render replaces the clip's previous render
+        elif op["kind"] == "snapshot":
             if len(p["notes"]) > protocol.MAX_NOTES_PER_CLIP:
                 raise Rejected("clip too large")
             after = {n["id"]: n for n in p["notes"]}
@@ -175,7 +182,10 @@ class Session(object):
             if len(after) > protocol.MAX_NOTES_PER_CLIP:
                 raise Rejected("clip too large")
         self._check_welcome_fits(clip, after)
-        self.state[clip] = after
+        if op["kind"] == "render":
+            self.renders[clip] = p
+        else:
+            self.state[clip] = after
         self.seq += 1
         rev += 1
         self.revs[clip] = rev
@@ -227,16 +237,23 @@ class Session(object):
         if len(line) > protocol.MAX_LINE_BYTES - WELCOME_HEADROOM:
             raise Rejected("clip too large")
 
-    def snapshot(self):
-        return self._snapshot_of(self.state)
+    def snapshot(self, blob_available=None):
+        """``blob_available(blob_id) -> bool`` lets the relay mark which render files it still holds."""
+        return self._snapshot_of(self.state, blob_available)
 
-    def _snapshot_of(self, state):
+    def _snapshot_of(self, state, blob_available=None):
+        renders = {}
+        for cid, r in self.renders.items():
+            r = dict(r)
+            r["available"] = bool(blob_available(r["render_id"])) if blob_available else False
+            renders[cid] = r
         return {
             "session": self.id,
             "clips": [dict(c) for c in self.clips.values()],
             "revs": dict(self.revs),
             "notes": {cid: sorted(ns.values(), key=lambda n: (n["start"], n["pitch"], n["id"]))
                       for cid, ns in state.items()},
+            "renders": renders,
         }
 
     # --- persistence ----------------------------------------------------------
@@ -247,6 +264,7 @@ class Session(object):
                              for k, v in self.participants.items()},
             "clips": list(self.clips.values()), "revs": self.revs,
             "state": {cid: list(ns.values()) for cid, ns in self.state.items()},
+            "renders": dict(self.renders),
         }
 
     @classmethod
@@ -258,4 +276,10 @@ class Session(object):
         s.revs = dict(d["revs"])
         for cid, notes in d["state"].items():
             s.state[cid] = {n["id"]: n for n in notes}
+        for cid, r in (d.get("renders") or {}).items():
+            if cid in s.clips:
+                try:
+                    s.renders[cid] = protocol.validate_render(r)
+                except protocol.ProtocolError:
+                    pass
         return s

@@ -19,6 +19,8 @@ Reports:
 | `AnthemProbe_plugin_report5.txt` | 5 | a `.adv` copied into the User Library is visible to `Browser` (name includes `.adv`) and `load_item` loads it in 161 ms |
 | `AnthemProbe_plugin_report6.txt`, `…7.txt`, `…8.txt` | 6–8 | a hand-generated plug-in `.adv` (Serum 2 `PluginDevice` subtree from a saved set; `generated_plugin_adv_head.xml` shows the wrapper) is indexed and listed as loadable, but `load_item` returns in 1–16 ms with no device, no dialog, no log line; report7 loaded a stale index entry of the deleted first file |
 | `AnthemProbe_plugin_report9.txt` | 9 | a `.als` copied into `User Library/Clips` appears as one loadable item with no track children; not loaded (would open the set) |
+| `AnthemProbe_plugin_report10.txt` | 10 | `Track.create_audio_clip(path, 0.0)` places a file in the Arrangement; browser sample load does not create a Session clip; `fire(record_length=4.0)` records exactly 4.000 beats and stops by itself |
+| `AnthemProbe_plugin_report11.txt` | 11 | the shipped `render.py` inside Live: Serum 2 on a disposable `Anthem Drums` track, `RenderCapture` 8 beats in 5.6 s (peak −7 dBFS), `companion.audio` → 24-bit WAV 1.15 MB, `apply_render` → looping 8-beat Session clip in `Anthem Drums (render)`, cleanup |
 
 All writes were made to a disposable unsaved default set on tracks named `Anthem Plugin Probe` /
 `Anthem Probe Render`, which were deleted at the end of each stage.

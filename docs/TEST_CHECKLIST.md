@@ -31,6 +31,14 @@ and for each step: pass/fail, observed delay, anything surprising.
 13. [ ] A opens a different Live Set. A's companion refuses to bind ("different set"); nothing is written into the new set. A reopens the test set (or types `rebind` deliberately).
 14. [ ] Both play back locally; material is audible on both machines through local instruments.
 
+## Renders (a plug-in only one side has)
+15. [ ] A puts a third-party instrument B does not own (or any plug-in) on *Anthem Drums*. Within a few seconds both companions print a `PLUG-IN:` line naming it (A: "the other participant does not have …"; B: "… not installed here"). Record the delay.
+16. [ ] A types `render drums`. A's Live plays the drums clip once while an `Anthem Render Bus` track records it, then the bus disappears and the transport stops (if it was stopped before). A prints "render of drums shared (N KiB)". Record capture time (`ms`) and upload time.
+17. [ ] B prints "render of drums … downloading" then "placed in Live". B has a new audio track `Anthem Drums (render)` with a looping clip in slot 1; launching the scene plays A's sound on B. Record download time and whether the loop length matches the clip (default 16 beats).
+18. [ ] A changes the sound and types `render drums` again. B's render clip is replaced (same track, same slot). B's own edits to that render clip are not sent anywhere (the track is a listen-only copy).
+19. [ ] Restart the relay (`--state`). A prints "re-uploading"; B keeps its copy; a third participant resuming would get the file again. Record.
+20. [ ] Live preferences on A set to record FLAC → `render` reports an error naming the file type; set WAV or AIFF and retry.
+
 ## Measurements
 - Detection delay (owner): companion `status` shows "detect→companion lag" (time from the Live notes listener firing to the companion receiving the delta, median/p95). For the raw listener delay use `tools/live_verify.py` phase B.
 - Transport delay: op_ack round trip (companion `status`, median / p95).
@@ -41,4 +49,5 @@ and for each step: pass/fail, observed delay, anything surprising.
 ## Known expectations
 - Remote edits enter the receiver's Undo history (one step per op).
 - Editing the other participant's clip triggers a conflict, not a merge.
-- Nothing except MIDI notes of the two template clips is synchronized.
+- Nothing except MIDI notes of the two template clips and explicit renders is synchronized.
+- A render is a recording: it runs in real time and the owner hears the loop once; it is not updated until `render` is typed again.

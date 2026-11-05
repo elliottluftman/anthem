@@ -6,6 +6,12 @@ Verification labels follow `CLAUDE.md`: **verified in Live** = observed inside t
 on this machine; **binary** = name/docstring found in the Live 12.4.1 executable, not exercised;
 **web** = documented or reported elsewhere; **untested** = reasoned, not tried.
 
+**Update, same day:** the hear-only render path (§3) is now implemented as the `render <clip>`
+feature (see `docs/PROTOCOL.md` → Renders, `remote_script/Anthem/render.py`, `companion/audio.py`),
+verified inside Live 12.4.3 with Serum 2 (`probe/plugin_probe/reports/AnthemProbe_plugin_report11.txt`)
+and end to end with two simulated clients (`tests/test_render_e2e.py`). The §2 plug-in *state* path
+remains research only (blocked, see §2b).
+
 Two questions were asked:
 
 1. Both producers have the same plug-in (e.g. Serum 2). Do the patches match, and can changes made
