@@ -29,7 +29,7 @@ MAX_TRACKS = 16
 MAX_RENDER_BEATS = 256.0
 MAX_BLOB_BYTES = 32 * 1024 * 1024      # one render file
 BLOB_CHUNK_BYTES = 160 * 1024          # raw bytes per chunk (~214 KiB base64 + envelope < MAX_LINE_BYTES)
-MAX_PLUGIN_NAMES = 512                 # installed plug-ins one participant may announce
+MAX_PLUGIN_NAMES = 4096                # installed plug-ins one participant may announce (a real collection had 1084)
 MAX_NAME_LEN = 128
 
 ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")

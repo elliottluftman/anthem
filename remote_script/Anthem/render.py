@@ -44,7 +44,7 @@ def track_devices(track):
     return out
 
 
-def installed_plugins(app, limit=512):
+def installed_plugins(app, limit=4096):
     """Names of the plug-ins Live's browser lists (AU/VST/VST3), as the user sees them."""
     names = set()
 

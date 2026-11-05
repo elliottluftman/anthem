@@ -347,7 +347,7 @@ class Companion(object):
     def _send_info(self):
         if self.plugins is None or not (self.relay_connected and self.welcomed):
             return []
-        return [("relay", {"type": "info", "plugins": sorted(self.plugins),
+        return [("relay", {"type": "info", "plugins": sorted(self.plugins)[:protocol.MAX_PLUGIN_NAMES],
                            "tracks": {c.clip: list(c.devices) for c in self.clips.values() if c.owned}})]
 
     def _relay_welcome(self, msg):
