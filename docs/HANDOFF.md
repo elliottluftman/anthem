@@ -165,8 +165,8 @@ every message/log/queue by bytes as well as by count.
 ## 8. Suggested next steps
 
 1. Run `docs/TEST_CHECKLIST.md` on two machines (steps 15–20 cover renders); record latencies.
-1b. Restart Live here, then run the companion-driven render against a real Live (host) with a
-   simulated guest; try Live set to 16-bit and 32-bit recording.
+1b. Restart Live here, then `python3 tools/demo_render_one_live.py` (companion-driven render
+   against a real Live host with a simulated guest); try Live set to 16-bit and 32-bit recording.
 2. Add velocity/expression human tests.
 3. Replace the fixed template with ids stored on the clip and a "share this clip" picker.
 4. Measure audio-thread impact under load (Live CPU meter, dropouts) with a busy set.

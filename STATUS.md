@@ -17,7 +17,7 @@ been verified, and what is still untested. The detailed documents it points to l
 | Companion | `companion/anthem.py`, `companion/core.py`, `companion/audio.py` | Local CLI process. `install`, `create`, `join`, `resume`, `status`. Keeps the relay link (reconnect/backoff), the per-clip replica, ownership, conflicts, diagnostics (`~/.anthem/anthem.log`). `core.py` is a pure state machine (no I/O) so it is fully unit-tested. Renders: exchanges installed-plug-in lists, prints which plug-in the other side lacks, `render <clip>` command, converts Live's recording to WAV (`audio.py`, stdlib AIFF/WAV reader), chunked acked upload/download through the relay. |
 | Relay | `relay/relay.py` | asyncio server: create/join/resume, participant secrets (hashed), ownership enforcement, relay-assigned sequence/revision numbers, bounded op log, optional JSON persistence, optional TLS, per-IP limits, invite-code and create-token throttling. Renders: relays `info`, stores render files in memory (bounded, owner-only upload, paced download), `render` ops carry metadata and are persisted. |
 | Core | `anthem_core/protocol.py`, `anthem_core/session.py` | Wire protocol (NDJSON, strict validation, size caps) and session/ownership/ordering logic shared by relay and tests. |
-| Tools | `tools/live_verify.py`, `tools/demo_one_live.py` | Drivers that exercise the Remote Script inside a real Live, and a real-Live-plus-simulated-guest demo through the real relay/companions. |
+| Tools | `tools/live_verify.py`, `tools/demo_one_live.py`, `tools/demo_render_one_live.py` | Drivers that exercise the Remote Script inside a real Live, a real-Live-plus-simulated-guest demo through the real relay/companions, and the same for a render (`render drums` from the Live side, verified at the simulated guest). |
 | Tests | `tests/` | 170 pytest tests: protocol, session, relay over real sockets (incl. TLS), companion state machine, Remote Script against mocked Live objects, headless surface, two-simulated-clients end-to-end (notes and renders, incl. relay restart with re-upload), audio conversion. |
 | Docs | `docs/` | `SETUP.md` (participant instructions), `TEST_CHECKLIST.md` (two-computer acceptance test), `PROTOCOL.md`, `CAPABILITY_MATRIX.md` (what was verified in Live and how), `LIMITATIONS.md`, `HANDOFF.md` (architecture, risks, next steps), `PLUGIN_RESEARCH.md` (2026-11-04: how third-party plug-ins can be synced or rendered — API facts verified in Live 12.4.3, workarounds, next tests). |
 
@@ -56,9 +56,11 @@ fixed with regression tests. See `docs/HANDOFF.md` §6b.
 1. **Two real Live installations, two machines** — run `docs/TEST_CHECKLIST.md` end to
    end (steps 1–20, renders included) and record Live versions, OS versions, latencies from
    `status`, and anything odd. This is the one result that matters most.
-1b. **Renders with the companion driving a real Live** (after a Live restart loads the new
-   surface): `render drums` from the companion, hear it on a simulated or real guest; Live set
-   to 16-bit / 32-bit / FLAC recording.
+1b. **Renders with the companion driving a real Live** — quit Live (Don't Save on the disposable
+   set), relaunch it so the new surface code loads, put an instrument or plug-in and a few notes on
+   `Anthem Drums`, then run `python3 tools/demo_render_one_live.py`. It creates a session with a
+   simulated guest, types `render drums` for the Live side and verifies the file the guest receives.
+   Also try Live set to 16-bit / 32-bit / FLAC recording.
 2. **Velocity and note-expression edits made by a human** (only API-applied so far; the
    tester had not found the velocity lane).
 3. **Undo/redo behaviour across machines** (expected: remote edits enter the receiver's undo
