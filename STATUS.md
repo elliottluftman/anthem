@@ -57,7 +57,9 @@ fixed with regression tests. See `docs/HANDOFF.md` §6b.
    feature. Open from that run: step 13 (different set), step 20 (FLAC), the one-off bass CONFLICT.
 1a. **Next features, agreed with the testers (2026-11-04):** stock-device sync (auto-load the same stock
    instrument/preset on the peer, live parameter sync); render pairing (render track next to the MIDI
-   track, same colour, MIDI track auto-muted while a render exists); automatic re-render after edits.
+   track, same colour, MIDI track auto-muted while a render exists); automatic re-render after edits;
+   **both participants editing the same clip at once** (per-note merging by owner note id replacing the
+   one-owner-per-clip rule; true collisions on one note resolved last-writer-wins with a visible flag).
 1b. Renders with a **real Live on the receiving side** (only the owner side has been a real Live so
    far), and Live set to 16-bit / 32-bit / FLAC recording. `python3 tools/demo_render_one_live.py`
    re-runs the owner-side check at any time.
