@@ -38,7 +38,7 @@ python3 companion/anthem.py create --relay 127.0.0.1:9801     # host; prints inv
 python3 companion/anthem.py join CODE --relay 127.0.0.1:9801 --script-port 9810  # guest; on one machine use a different script port (a second Live would need its own machine)
 ```
 
-Full participant instructions: `docs/SETUP.md`. Verification driver for the Live
+Full participant instructions: `docs/SETUP.md`; guest onboarding in one page: `docs/FRIEND_SETUP.md`. Verification driver for the Live
 integration alone: `python3 tools/live_verify.py` (needs Live running with Anthem selected).
 
 ## Design in one paragraph

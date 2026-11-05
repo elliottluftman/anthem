@@ -68,8 +68,10 @@ after `revert bass` the guest's six notes and a velocity change were applied in 
 ## Renders — what the one-Live run proved and did not (2026-11-04)
 
 `render.RenderCapture` and `render.apply_render` ran inside Live 12.4.3 with Serum 2 on a
-disposable `Anthem Drums` track driven by a probe (not by the companion): capture 8 beats →
-24-bit WAV 1.15 MB → placed back as a looping Session clip. The complete chain companion ↔
+disposable `Anthem Drums` track driven by a probe: capture 8 beats → 24-bit WAV 1.15 MB → placed
+back as a looping Session clip. Then, after a Live restart (12.4.5), **companion-driven**
+(`tools/demo_render_one_live.txt`): `render drums` typed into the host companion → 16 beats in 9.2 s →
+2.25 MB / 15 chunks → simulated guest placed it, hash OK, 10.3 s total. The complete chain companion ↔
 relay ↔ companion (chunked upload/download, re-upload after a relay restart) is proven with
 two simulated clients (`tests/test_render_e2e.py`); the surface wiring (`render_capture` /
 `apply_render` handlers) with the headless surface. Not yet observed: the whole chain with

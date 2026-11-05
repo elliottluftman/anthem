@@ -1,0 +1,24 @@
+tools/demo_render_one_live.py — 2026-11-04 22:25, Live 12.4.5 Suite (macOS), Serum 2 VST3 on 'Anthem Drums'
+(16-beat clip, 16 notes). Real Live = host (owner of drums); simulated guest (headless script + mock set).
+Companion-driven: the `render drums` command was typed into the host companion by the driver.
+
+[22:25:29] A(Live): script: Live connected
+[22:25:29] A(Live): script: hello from Live 12.4.5 set=''
+[22:25:29] A(Live): Supported parts:  drums found/owned 16 notes; bass found, peer-owned
+[22:25:29] A(Live): PLUG-IN: the other participant does not have Serum 2 (on Anthem Drums). They hear nothing from it - type 'render drums' to send them the audio of one loop.
+[22:25:29] B(sim):  PLUG-IN: drums uses Serum 2, which is not installed here. You will hear it once the owner types 'render drums' (the audio arrives as a locked 'Anthem Drums (render)' track; you cannot edit that plug-in).
+[22:25:31] plug-ins on Live's Anthem Drums: ['Serum 2'] | installed in Live: 33
+[22:25:31] A(Live): render drums: Live plays one loop of 'Anthem Drums' and records it (the transport runs)
+[22:25:40] A(Live): render of drums recorded (16 beats, 9163 ms) - converting and uploading
+[22:25:41] capture finished after 9.2s -> uploading
+[22:25:42] A(Live): render of drums shared (2250 KiB); the other side places it in 'Anthem Drums (render)'
+[22:25:42] B(sim):  render of drums (101104db, 2250 KiB) - downloading
+[22:25:42] shared after 10.2s: {'render_id': '101104db90bb4bae', 'beats': 16.0, 'sample_rate': 48000, 'channels': 2, 'bits': 24, 'size': 2304044, 'sha256': '76721a9e8cd640befa7a60febdf5512a0a63d77df615f97d6515732a1a500401', 'n_chunks': 15}
+[22:25:42] B(sim):  render of drums placed in Live ('Anthem Drums (render)', 0 ms)
+[22:25:42] guest placed 101104db90bb4bae.wav (2250 KiB, 24-bit, 48000 Hz, 16 beats) hash OK after 10.3s total
+status (host): drums you found rev 2 ok 16 notes | renders: drums plug-ins=Serum 2 render=101104db shared
+RESULT: render verified end to end with a real Live as the owner (hash OK).
+
+Observed in Live: the 'Anthem Render Bus' track appeared, the clip played once (16 beats at 120 BPM = 8 s),
+the bus disappeared, transport stopped. Capture 9.2 s = 8 s loop + ~1 s settle; convert+upload 1 s on loopback.
+Not covered: a real Live on the receiving side (two-machine test pending).

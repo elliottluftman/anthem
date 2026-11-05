@@ -40,7 +40,7 @@ Full list: `docs/LIMITATIONS.md`.
 | Tested against mocked Ableton objects | ✅ | `tests/mock_live.py`, `tests/test_remote_script.py` (clearly mocked, not Live) |
 | Two simulated clients end to end | ✅ | `tests/test_e2e_sim.py`: real relay + two real companions + the real Remote Script code on mocked sets. Draw/move/resize/velocity/delete both ways, 40-note burst, conflict + revert, ownership handover via `claim`, duplicate identity rejected, clip deleted/recreated, relay restart with persistence, different-set guard. `tests/test_render_e2e.py`: plug-in info exchange, `render drums` → mocked recording → WAV → 8 chunks through the relay → placed on the other side; relay restart → owner re-uploads. |
 | Verified inside **one** actual Ableton (Live 12.4.1 Suite, macOS 26) | ✅ | `tools/live_verify.py` 11/11: template creation, apply add/move/resize/velocity/mute/pitch/delete, idempotent snapshots, no echo, listener detection 25–43 ms. A human's piano-roll edits (draw, move, transpose, resize, Cmd+D, delete) were detected with stable note ids (`tools/live_verify_phaseB.txt`). `tools/demo_one_live.py`: real Live host + simulated guest through the real relay — guest's bass line appeared in Live, the human's drum edits reached the guest (`tools/demo_one_live.txt`, `tools/demo_one_live_final.txt`). |
-| Render capture/placement inside **one** actual Ableton (Live 12.4.3, Serum 2) | ✅ | `probe/plugin_probe/reports/AnthemProbe_plugin_report11.txt`: the shipped `render.py` recorded 8 beats of a Serum 2 track in 5.6 s (real audio), the WAV was placed as a looping 8-beat Session clip in `Anthem Drums (render)`. Driven by a probe, not yet by the companion inside Live (the new surface code needs a Live restart). |
+| Render capture/placement inside **one** actual Ableton (Live 12.4.3/12.4.5, Serum 2) | ✅ | `probe/plugin_probe/reports/AnthemProbe_plugin_report11.txt` (module driven by a probe) and `tools/demo_render_one_live.txt` (2026-11-04 22:25, **companion-driven**: real Live 12.4.5 host typed `render drums` → 16 beats of Serum 2 recorded in 9.2 s → 2.25 MB WAV → 15 chunks through the relay → simulated guest placed it, hash OK, 10.3 s total; PLUG-IN hints printed on both sides). |
 | Verified between **two** actual Ableton installations | ❌ **not yet** | This is the next thing to do. Until it is done, do not describe the prototype as working end to end. |
 
 Measured on one machine: apply inside Live 0.2–7 ms per op (median ~1.3 ms), listener
@@ -56,11 +56,9 @@ fixed with regression tests. See `docs/HANDOFF.md` §6b.
 1. **Two real Live installations, two machines** — run `docs/TEST_CHECKLIST.md` end to
    end (steps 1–20, renders included) and record Live versions, OS versions, latencies from
    `status`, and anything odd. This is the one result that matters most.
-1b. **Renders with the companion driving a real Live** — quit Live (Don't Save on the disposable
-   set), relaunch it so the new surface code loads, put an instrument or plug-in and a few notes on
-   `Anthem Drums`, then run `python3 tools/demo_render_one_live.py`. It creates a session with a
-   simulated guest, types `render drums` for the Live side and verifies the file the guest receives.
-   Also try Live set to 16-bit / 32-bit / FLAC recording.
+1b. Renders with a **real Live on the receiving side** (only the owner side has been a real Live so
+   far), and Live set to 16-bit / 32-bit / FLAC recording. `python3 tools/demo_render_one_live.py`
+   re-runs the owner-side check at any time.
 2. **Velocity and note-expression edits made by a human** (only API-applied so far; the
    tester had not found the velocity lane).
 3. **Undo/redo behaviour across machines** (expected: remote edits enter the receiver's undo
@@ -92,6 +90,8 @@ Participant instructions: `docs/SETUP.md`. Companion commands while running:
 `status | setup | render <clip> | revert <clip> | claim <clip> | release <clip> | resync | rebind | quit`.
 
 ## 5. Where to continue (for the next developer / AI assistant)
+
+Collaborator onboarding (for the guest and their AI assistant): `docs/FRIEND_SETUP.md`.
 
 Read in this order: `STATUS.md` (this) → `docs/HANDOFF.md` → `docs/PROTOCOL.md` →
 `docs/LIMITATIONS.md` → `docs/CAPABILITY_MATRIX.md`. `CLAUDE.md` has the working
