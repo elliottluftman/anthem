@@ -284,6 +284,12 @@ def test_core_owner_reuploads_when_relay_lost_the_file():
     acts = c.on_relay(welcome("host1", "host", renders={"drums": dict(meta(rid="r9"), available=False)}))
     up = [a[1] for a in acts if a[0] == "upload"]
     assert up and up[0]["converted"] is True and up[0]["path"] == "/tmp/r9.wav"
+    # a fresh companion (nothing remembered) still re-offers: the glue looks for the file on disk
+    d.render = None
+    d.render_path = None
+    acts = c.on_relay(welcome("host1", "host", renders={"drums": dict(meta(rid="r10"), available=False)}))
+    up = [a[1] for a in acts if a[0] == "upload"]
+    assert up and up[0]["path"] is None and up[0]["render_id"] == "r10"
     # relay offline: a finished upload is not marked dirty (no request_snapshot storm), just reported
     c.on_relay_disconnected()
     acts = c.on_transfer({"kind": "upload", "clip": "drums", "render_id": "r9", "ok": True, "path": "/tmp/r9.wav",

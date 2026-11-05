@@ -454,13 +454,15 @@ class Companion(object):
             available = bool(r.get("available"))
             if c.owned:
                 mine = c.render or {}
-                if not available and c.render_path and mine.get("render_id") == meta["render_id"]:
+                c.render = meta
+                if not available:
+                    # The relay lost the file (restart). Re-upload our copy: the one we remember, or the
+                    # file a previous companion run left under ~/.anthem/renders (the glue looks it up).
+                    path = c.render_path if mine.get("render_id") == meta["render_id"] else None
                     c.render_state = "uploading"
                     out.append(("print", "relay no longer holds the render of %s - re-uploading" % cid))
-                    out.append(("upload", {"clip": cid, "render_id": meta["render_id"], "path": c.render_path,
+                    out.append(("upload", {"clip": cid, "render_id": meta["render_id"], "path": path,
                                            "beats": meta["beats"], "converted": True}))
-                else:
-                    c.render = meta
                 continue
             if (c.render or {}).get("render_id") == meta["render_id"] and c.render_path:
                 c.render = meta

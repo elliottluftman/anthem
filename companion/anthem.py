@@ -282,7 +282,12 @@ class Transfer(object):
         ev = {"kind": "upload", "clip": clip, "render_id": rid, "beats": beats}
         try:
             dst = str(self._dir() / ("%s.wav" % rid))
-            if d.get("converted") and src and os.path.isfile(src):
+            if d.get("converted"):
+                if not (src and os.path.isfile(src)):
+                    src = dst if os.path.isfile(dst) else None     # left by a previous companion run
+                if src is None:
+                    raise audio.AudioError("no local copy of render %s on this machine; type 'render %s' again"
+                                           % (rid, clip))
                 dst = src
                 rate, ch, bits, _ = await asyncio.get_event_loop().run_in_executor(None, audio.read_pcm, dst)
                 meta = audio.describe(dst, rate, ch, bits)
