@@ -41,7 +41,7 @@ Full list: `docs/LIMITATIONS.md`.
 | Two simulated clients end to end | ✅ | `tests/test_e2e_sim.py`: real relay + two real companions + the real Remote Script code on mocked sets. Draw/move/resize/velocity/delete both ways, 40-note burst, conflict + revert, ownership handover via `claim`, duplicate identity rejected, clip deleted/recreated, relay restart with persistence, different-set guard. `tests/test_render_e2e.py`: plug-in info exchange, `render drums` → mocked recording → WAV → 8 chunks through the relay → placed on the other side; relay restart → owner re-uploads. |
 | Verified inside **one** actual Ableton (Live 12.4.1 Suite, macOS 26) | ✅ | `tools/live_verify.py` 11/11: template creation, apply add/move/resize/velocity/mute/pitch/delete, idempotent snapshots, no echo, listener detection 25–43 ms. A human's piano-roll edits (draw, move, transpose, resize, Cmd+D, delete) were detected with stable note ids (`tools/live_verify_phaseB.txt`). `tools/demo_one_live.py`: real Live host + simulated guest through the real relay — guest's bass line appeared in Live, the human's drum edits reached the guest (`tools/demo_one_live.txt`, `tools/demo_one_live_final.txt`). |
 | Render capture/placement inside **one** actual Ableton (Live 12.4.3/12.4.5, Serum 2) | ✅ | `probe/plugin_probe/reports/AnthemProbe_plugin_report11.txt` (module driven by a probe) and `tools/demo_render_one_live.txt` (2026-11-04 22:25, **companion-driven**: real Live 12.4.5 host typed `render drums` → 16 beats of Serum 2 recorded in 9.2 s → 2.25 MB WAV → 15 chunks through the relay → simulated guest placed it, hash OK, 10.3 s total; PLUG-IN hints printed on both sides). |
-| Verified between **two** actual Ableton installations | ❌ **not yet** | This is the next thing to do. Until it is done, do not describe the prototype as working end to end. |
+| Verified between **two** actual Ableton installations | ✅ 2026-11-04 (first run) | `docs/TEST_RESULTS_2026-11-04.md`: two Macs on a phone hotspot, Live 12.4.5 host + Live 12.4.x guest (after an update from 12.0.2). Checklist steps 1–12 and 14–19 passed (13 and 20 not run); notes both ways, conflicts/revert, resume, relay restart, duplicate identity, clip delete/re-create, and plug-in renders (Serum 2 → guest without Serum, 2.25 MB, placed in 18 ms, re-render replaced in place). Two defects found and fixed during the run (plug-in list cap, render re-upload after companion restart); one unexplained bass CONFLICT on the host, resolved by `revert`. |
 
 Measured on one machine: apply inside Live 0.2–7 ms per op (median ~1.3 ms), listener
 fires 25–43 ms after an edit, full path edit → other side ≈ 174 ms on loopback (a WAN adds
@@ -53,9 +53,11 @@ fixed with regression tests. See `docs/HANDOFF.md` §6b.
 
 ## 3. What still needs testing
 
-1. **Two real Live installations, two machines** — run `docs/TEST_CHECKLIST.md` end to
-   end (steps 1–20, renders included) and record Live versions, OS versions, latencies from
-   `status`, and anything odd. This is the one result that matters most.
+1. ~~Two real Live installations~~ — done once (`docs/TEST_RESULTS_2026-11-04.md`); repeat after each
+   feature. Open from that run: step 13 (different set), step 20 (FLAC), the one-off bass CONFLICT.
+1a. **Next features, agreed with the testers (2026-11-04):** stock-device sync (auto-load the same stock
+   instrument/preset on the peer, live parameter sync); render pairing (render track next to the MIDI
+   track, same colour, MIDI track auto-muted while a render exists); automatic re-render after edits.
 1b. Renders with a **real Live on the receiving side** (only the owner side has been a real Live so
    far), and Live set to 16-bit / 32-bit / FLAC recording. `python3 tools/demo_render_one_live.py`
    re-runs the owner-side check at any time.

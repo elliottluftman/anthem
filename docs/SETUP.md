@@ -34,7 +34,9 @@ Live's status bar shows `Anthem: waiting for companion (127.0.0.1:9800)`.
 python3 relay/relay.py --host 0.0.0.0 --port 9801 --state ~/.anthem/relay-state.json
 ```
 
-* Same LAN / localhost test: plaintext is acceptable.
+* Same LAN / localhost test: plaintext is acceptable. Note: many home/office routers isolate Wi-Fi
+  clients from each other (same subnet, no ping) — a phone hotspot both Macs join, or Tailscale,
+  avoids that. A USB-C cable between two Macs only works if it is a real Thunderbolt/USB4 cable.
 * Over the internet: run it behind TLS — `--cert fullchain.pem --key privkey.pem`
   (e.g. Let's Encrypt on a small VPS) and have both companions pass `--tls`.
   Do not expose a plaintext relay to the internet; the relay authenticates

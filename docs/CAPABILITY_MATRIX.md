@@ -11,7 +11,10 @@ Legend — verification levels, strictly as defined in the brief:
   (`tools/live_verify.py` phase A)
 * **Live/human** = verified inside one real Live instance with a person editing in the
   piano roll (`tools/live_verify.py` phase B, 2026-10-16, log in `tools/live_verify_phaseB.txt`)
-* **2×Live** = verified between two real Ableton installations — **not yet done**
+* **2×Live** = verified between two real Ableton installations — done once on 2026-11-04 for the
+  human-edit rows (draw/move/resize/velocity/delete/duplicate both ways, undo/redo, conflict + revert,
+  resume, relay restart, duplicate identity, clip delete/re-create) and for renders; see
+  `TEST_RESULTS_2026-11-04.md`
 
 | Operation | Read | Detect native edit | Apply | Verified in Live |
 |---|---|---|---|---|
@@ -80,9 +83,8 @@ Live set to record FLAC (unsupported: WAV/AIFF only), bit-depth settings other t
 
 ## Not verified yet
 
-* Two real Live installations exchanging edits (the relay/companion path is proven with
-  real sockets and one real Live on one side; the other side was the Remote Script code
-  running headless, not a second Live).
+* Different-set guard between two Lives (step 13) and FLAC recording (step 20); Live 12 Standard;
+  Live 11 (12.0.2 could not place renders and was updated before testing).
 * Live 12 Standard / Live 11 / Windows.
 * Velocity and note-expression edits made by a human.
 * Audio dropout measurement under load (CPU meter unchanged in casual observation only).
